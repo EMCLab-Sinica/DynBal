@@ -80,7 +80,7 @@ def determine_conv_tile_c(onnx_model: onnx.ModelProto, config: dict[str, Any], i
 
         if not input_tile_too_large:
             params_len = math.ceil(CHANNEL / node_flags.input_tile_c) * OUTPUT_CHANNEL * OUTPUT_H * OUTPUT_W * 2
-            if params_len < config['intermediate_values_size']:
+            if params_len <= config['intermediate_values_size']:
                 break
             logger.debug(f'params_len={params_len}, too high!')
         assert node_flags.input_tile_c / 2 * 2 == node_flags.input_tile_c

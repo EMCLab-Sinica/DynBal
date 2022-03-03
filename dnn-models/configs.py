@@ -23,7 +23,8 @@ configs = {
         'scale': 2,
         'input_scale': 10,
         'num_slots': 3,
-        'intermediate_values_size': 65000,
+        # 1st conv output = (15*15*64)*sizeof(int16_t)
+        'intermediate_values_size': 28800,
         'data_loader': load_data_cifar10,
         'n_all_samples': 10000,
         'sample_size': [3, 32, 32],
@@ -34,7 +35,8 @@ configs = {
         'scale': 1,
         'input_scale': 120,
         'num_slots': 2,
-        'intermediate_values_size': 20000,
+        # 1st fc output = (1*144*2)*sizeof(int16_t), N/T_n=2
+        'intermediate_values_size': 576,
         'data_loader': load_data_google_speech,
         'n_all_samples': 4890,
         'sample_size': [25, 10],  # MFCC gives 25x10 tensors
@@ -45,7 +47,8 @@ configs = {
         'scale': 2,
         'input_scale': 16,
         'num_slots': 2,
-        'intermediate_values_size': 20000,
+        # 3rd conv output = (128*18)*sizeof(int16_t)
+        'intermediate_values_size': 4608,
         'data_loader': load_har,
         'n_all_samples': 2947,
         'sample_size': [9, 128],

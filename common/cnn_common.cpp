@@ -132,7 +132,7 @@ static void handle_node(Model *model, uint16_t node_idx) {
     output->params_offset = 0;
     allocators[cur_node->op_type](model, input, output, cur_node);
     my_printf_debug("Needed mem = %d" NEWLINE, output->params_len);
-    MY_ASSERT(output->params_len < INTERMEDIATE_VALUES_SIZE);
+    MY_ASSERT(output->params_len <= INTERMEDIATE_VALUES_SIZE);
 
 #if STATEFUL
     my_printf_debug("Old output state bit=%d" NEWLINE, get_state_bit(model, output->slot));
