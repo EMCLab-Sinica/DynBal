@@ -42,6 +42,8 @@ def main():
             continue
 
         print(f'Layer output {name}')
+        if name not in baseline_data:
+            continue
         max_num = np.max(np.abs(baseline_data[name]))
         cur_baseline_data = baseline_data[name]
         cur_target_data = get_tensor(layer_out)
