@@ -208,6 +208,12 @@ def find_node_by_output(nodes: List[onnx.NodeProto], output_name: str) -> onnx.N
             if output == output_name:
                 return node
 
+def find_node_by_input(nodes: List[onnx.NodeProto], input_name: str) -> onnx.NodeProto:
+    for node in nodes:
+        for input_ in node.input:
+            if input_ == input_name:
+                return node
+
 def get_attr(node, attr_name):
     for attr in node.attribute:
         if attr.name != attr_name:

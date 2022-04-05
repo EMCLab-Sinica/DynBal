@@ -320,7 +320,7 @@ void handle_add(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
 
     int16_t scaleFract;
     uint8_t shift;
-    float_to_scale_params(&scaleFract, &shift, 1.0f*Y->scale/X->scale);
+    float_to_scale_params(&scaleFract, &shift, Y->scale/X->scale);
     my_scale_q15(buffer_b, scaleFract, shift, buffer_b, buffer_size);
 
     uint16_t idx = data_offset / buffer_size;

@@ -218,7 +218,7 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
                 // If the dividend is negative, the quotient is wrong
                 int16_t bias_val = 0;
                 if (conv_params->conv_bias) {
-                    bias_val = -static_cast<int32_t>(get_q15_param(conv_params->model, conv_params->conv_bias, conv_params->filter_idx + idx)) / conv_params->conv_input->scale;
+                    bias_val = -static_cast<int32_t>(get_q15_param(conv_params->model, conv_params->conv_bias, conv_params->filter_idx + idx)) / conv_params->conv_input->scale.toFloat();
                 }
 #if STATEFUL
                 start_cpu_counter(offsetof(Counters, embedding));
@@ -515,7 +515,7 @@ static void handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
     if (conv_params->real_conv_input->scale != conv_params->conv_input->scale) {
         int16_t scaleFract;
         uint8_t shift;
-        float_to_scale_params(&scaleFract, &shift, 1.0f * conv_params->real_conv_input->scale / conv_params->conv_input->scale);
+        float_to_scale_params(&scaleFract, &shift, conv_params->real_conv_input->scale / conv_params->conv_input->scale);
         my_scale_q15(lea_buffer, scaleFract, shift, lea_buffer, inputs_len);
     }
     uint16_t bias_multipler_offset = conv_params->dest_offset - 1;
@@ -610,7 +610,7 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
 #if STATEFUL
     start_cpu_counter(offsetof(Counters, embedding));
     if (conv_input->slot == SLOT_TEST_SET) {
-        output->scale *= 2;
+        output->scale.shift++;
     }
     stop_cpu_counter();
 #endif

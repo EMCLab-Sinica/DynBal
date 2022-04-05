@@ -193,7 +193,7 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 #else
             if (tile == 0) {
                 for (uint16_t idx = 0; idx < values_to_preserve; idx++) {
-                    filter_ptr[idx] = -static_cast<int32_t>(get_q15_param(model, matC, idx + j)) / A->scale;
+                    filter_ptr[idx] = -static_cast<int32_t>(get_q15_param(model, matC, idx + j)) / A->scale.toFloat();
                 }
             }
 #endif

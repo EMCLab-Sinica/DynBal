@@ -25,7 +25,7 @@ std::unique_ptr<ModelOutput> model_output_data;
 #define PRINT_NEWLINE_IF_DATA_NOT_SAVED if (!layer_out) { my_printf(NEWLINE); }
 
 ValueInfo::ValueInfo(const ParameterInfo *cur_param, Model *model) {
-    this->scale = cur_param->scale;
+    this->scale = cur_param->scale.toFloat();
 }
 
 static void print_q15(LayerOutput* layer_out, int16_t val, const ValueInfo& val_info, bool has_state) {
@@ -54,7 +54,7 @@ void dump_value(Model *model, const ParameterInfo *cur_param, LayerOutput* layer
 }
 
 void dump_matrix(const int16_t *mat, size_t len, const ValueInfo& val_info, bool has_state) {
-    my_printf("Scale: %d" NEWLINE, val_info.scale);
+    my_printf("Scale: %f" NEWLINE, val_info.scale);
     for (size_t j = 0; j < len; j++) {
         print_q15(nullptr, mat[j], val_info, has_state && offset_has_state(j));
         if (j && (j % 16 == 15)) {
@@ -66,7 +66,7 @@ void dump_matrix(const int16_t *mat, size_t len, const ValueInfo& val_info, bool
 
 static void dump_params_common(Model* model, const ParameterInfo* cur_param, const char* layer_name, LayerOutput** p_layer_out) {
     my_printf("Slot: %d" NEWLINE, cur_param->slot);
-    my_printf("Scale: %d" NEWLINE, cur_param->scale);
+    my_printf("Scale: %f" NEWLINE, cur_param->scale.toFloat());
     my_printf("Params len: %" PRId32 NEWLINE, cur_param->params_len);
 #if INDIRECT_RECOVERY
     if (cur_param->slot < NUM_SLOTS) {
@@ -222,7 +222,7 @@ void dump_turning_points(Model *model, const ParameterInfo *output) {
 }
 
 void dump_matrix(const int16_t *mat, size_t rows, size_t cols, const ValueInfo& val_info, bool has_state) {
-    my_printf("Scale: %d", val_info.scale);
+    my_printf("Scale: %f", val_info.scale);
     if (rows > cols) {
         my_printf(" (transposed)" NEWLINE);
         for (size_t j = 0; j < cols; j++) {

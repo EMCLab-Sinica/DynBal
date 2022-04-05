@@ -20,7 +20,7 @@ import onnx.helper
 import numpy as np
 
 from configs import configs
-from utils import extract_data, get_attr, find_kernel_shape, find_initializer, find_node_by_output, find_tensor_value_info, infer_auto_pad, load_model, get_model_ops, DataLayout
+from utils import extract_data, get_attr, find_kernel_shape, find_initializer, find_node_by_input, find_node_by_output, find_tensor_value_info, infer_auto_pad, load_model, get_model_ops, DataLayout
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -569,7 +569,7 @@ for node in graph:
         output_nodes.write(to_bytes(0))
     output_nodes.write(to_bytes(node.max_output_id))
     output_nodes.write(to_bytes(ops.index(node.op_type)))
-    assert ctypes.sizeof(node.flags.as_bytes) == ctypes.sizeof(node.flags.b)
+    assert ctypes.sizeof(node.flags.as_bytes) == ctypes.sizeof(node.flags.b), f'Node flags require {ctypes.sizeof(node.flags.b)} bytes'
     for idx in range(ctypes.sizeof(node.flags.as_bytes)):
         output_nodes.write(to_bytes(node.flags.as_bytes[idx], size=8))
     if Constants.HAWAII:
@@ -585,6 +585,26 @@ def decode_raw_data(params):
     }[params.data_type]
     return list(map(lambda t: t[0], struct.iter_unpack(format_char, params.raw_data)))
 
+def get_float_data(param):
+    if param.float_data:
+        float_data = param.float_data
+    else:
+        float_data = decode_raw_data(param)
+    return float_data
+
+param_limits = {}
+def get_param_limit(model, node):
+    return config['scale']
+
+def write_scale(dest, scale):
+    shift = 0
+    while scale >= 1:
+        shift += 1
+        scale /= 2
+    dest.write(to_bytes(int(scale*2**15)))             # scale.fract
+    dest.write(to_bytes(shift, size=8))     # scale.shift
+    dest.write(to_bytes(0, size=8))         # scale.dummy
+
 model_parameters_info = outputs['model_parameters_info']
 for params in parameters:
     if params is None:  # input
@@ -594,22 +614,18 @@ for params in parameters:
         model_parameters_info.write(to_bytes(np.prod(dims) * 2, size=32))  # A _q15 is 16-bit
         model_parameters_info.write(to_bytes(16, size=8))                # bitwidth
         model_parameters_info.write(to_bytes(Constants.SLOT_TEST_SET, size=8))     # slot
-        model_parameters_info.write(to_bytes(0))                     # dummy
         # extend_dims
         model_parameters_info.write(to_bytes(1))
         for dim in dims:
             model_parameters_info.write(to_bytes(dim))
         for _ in range(3 - len(dims)):
             model_parameters_info.write(to_bytes(0))
-        model_parameters_info.write(to_bytes(config['input_scale']))     # scale
+        write_scale(model_parameters_info, config['input_scale'])
     else:
         param_scale = 0
         assert len(params.dims) <= 4
         if params.data_type == onnx.TensorProto.FLOAT:
-            if params.float_data:
-                float_data = params.float_data
-            else:
-                float_data = decode_raw_data(params)
+            float_data = get_float_data(params)
             data_len = len(float_data)
             assert data_len > 0
             slot = parameters_slot
@@ -618,7 +634,11 @@ for params in parameters:
             if params.name in conv_param_names:
                 logger.info('Reorder conv param %s', params.name)
                 float_data = nchw2nhwc(float_data, params.dims)
-            param_scale = config['scale']
+            used_node = find_node_by_input(onnx_model.graph.node, params.name)
+            if used_node.op_type in ('Conv', 'Gemm'):
+                param_scale = get_param_limit(onnx_model, used_node)
+            else:
+                param_scale = config['scale']
             slot.target.write(to_bytes(_Q15(np.array(float_data) / param_scale, 'Parameter')))
             slot.offset += 2 * len(float_data)
             model_parameters_info.write(to_bytes(16, size=8)) # bitwidth
@@ -643,14 +663,13 @@ for params in parameters:
             channels = params.dims[1]
         else:
             channels = 0
-        model_parameters_info.write(to_bytes(0, size=16))        # dummy
         logger.info('dims = %r, length = %d', params.dims, data_len)
         for dim in params.dims:
             model_parameters_info.write(to_bytes(dim))
         # dims are always 4 uint16_t's in C++
         for _ in range(4 - len(params.dims)):
             model_parameters_info.write(to_bytes(0))
-        model_parameters_info.write(to_bytes(param_scale))       # scale
+        write_scale(model_parameters_info, param_scale)
 
     # common to input and non-inputs
     model_parameters_info.write(to_bytes(0, size=8))                 # param_flags

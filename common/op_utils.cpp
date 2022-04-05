@@ -58,6 +58,10 @@ void OutputChunkHandler(uint32_t offset, uint16_t real_chunk_len, int8_t state_b
 }
 #endif
 
+void float_to_scale_params(int16_t *scaleFract, uint8_t *shift, const Scale& scale) {
+    float_to_scale_params(scaleFract, shift, scale.toFloat());
+}
+
 void float_to_scale_params(int16_t *scaleFract, uint8_t *shift, float scale) {
     *shift = 0;
     while (scale >= 1) {

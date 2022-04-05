@@ -60,7 +60,7 @@ struct ValueInfo {
     ValueInfo(const ParameterInfo *cur_param, Model *model = nullptr);
     ValueInfo() = delete;
 
-    uint16_t scale;
+    float scale;
 };
 
 extern uint8_t dump_integer;

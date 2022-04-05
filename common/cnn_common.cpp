@@ -147,8 +147,7 @@ static void handle_node(Model *model, uint16_t node_idx) {
 #endif
     handlers[cur_node->op_type](model, input, output, cur_node);
     // For some operations (e.g., ConvMerge), scale is determined in the handlers
-    my_printf_debug("Output scale = %d" NEWLINE, output->scale);
-    MY_ASSERT(output->scale > 0);  // fail when overflow
+    my_printf_debug("Output scale = %f" NEWLINE, output->scale.toFloat());
 #if STATEFUL
     my_printf_debug("New output state bit=%d" NEWLINE, get_state_bit(model, output->slot));
 #endif
@@ -299,4 +298,33 @@ uint8_t run_cnn_tests(uint16_t n_samples) {
     }
 #endif
     return 0;
+}
+
+bool Scale::operator>(const Scale& other) const {
+    return this->toFloat() > other.toFloat();
+}
+
+Scale Scale::operator*(const Scale& other) const {
+    Scale newScale;
+    newScale.fromFloat(this->toFloat() * other.toFloat());
+    return newScale;
+}
+
+Scale Scale::operator/(const Scale& other) const {
+    Scale newScale;
+    newScale.fromFloat(this->toFloat() / other.toFloat());
+    return newScale;
+}
+
+bool Scale::operator!=(const Scale& other) const {
+    // XXX: missing accuracy?
+    return this->toFloat() != other.toFloat();
+}
+
+void Scale::fromFloat(float scale) {
+    float_to_scale_params(&this->fract, &this->shift, scale);
+}
+
+float Scale::toFloat() const {
+    return 1.0f*fract * (1<<shift) / 32768;
 }

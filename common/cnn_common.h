@@ -66,6 +66,19 @@ typedef struct Node {
 
 static_assert(sizeof(Node) == NODE_NAME_LEN * 2 + 20 + NUM_INPUTS * 2 + HAWAII * 8, "Unexpected size for Node");
 
+struct Scale {
+    int16_t fract;
+    uint8_t shift;
+    uint8_t dummy;
+
+    bool operator>(const Scale& other) const;
+    Scale operator*(const Scale& other) const;
+    Scale operator/(const Scale& other) const;
+    bool operator!=(const Scale& other) const;
+    void fromFloat(float scale);
+    float toFloat() const;
+};
+
 /* ParameterInfo may indicate data from the model (parameters) or intermediate values */
 typedef struct ParameterInfo {
     uint32_t params_offset;
@@ -80,10 +93,9 @@ typedef struct ParameterInfo {
      * SLOT_PARAMETERS and a value in [0, NUM_SLOTS-1].
      */
     uint8_t slot;
-    uint16_t dummy;
     // uint8_t is not enough. For example, fully connected layer in MNIST has dims 256x1
     uint16_t dims[4];
-    uint16_t scale;
+    Scale scale;
     uint8_t param_flags;
     uint8_t extra_info[EXTRA_INFO_LEN];
     uint16_t parameter_info_idx; // must be the last member of this struct
