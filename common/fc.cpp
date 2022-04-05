@@ -183,7 +183,7 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
                     filter_ptr[idx] = param_state_bit(model, output, output_offset);
                 } else {
                     if (tile == 0) {
-                        filter_ptr[idx] = -static_cast<int32_t>(get_q15_param(model, matC, bias_offset + j)) / A->scale;
+                        filter_ptr[idx] = -static_cast<int32_t>(get_q15_param(model, matC, bias_offset + j)) / A->scale.toFloat();
                     }
                     bias_offset++;
                     processed_biases++;
