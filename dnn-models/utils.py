@@ -134,7 +134,9 @@ def load_har(start: int, limit: int):
                                     filename='UCI HAR Dataset.zip', post_processor=functools.partial(extract_archive, subdir='UCI HAR Dataset'))
         X_test, labels_test, _ = read_data(archive_dir, split='test')
         _, X_test = standardize(np.random.rand(*X_test.shape), X_test)
-        return ModelData(labels=labels_test[:limit]-1, images=X_test[:limit, :, :].astype(np.float32), data_layout=DataLayout.NCW)
+        if limit is None:
+            limit = len(labels_test)
+        return ModelData(labels=labels_test[start:start+limit]-1, images=X_test[start:start+limit, :, :].astype(np.float32), data_layout=DataLayout.NCW)
     finally:
         sys.path = orig_sys_path
 
