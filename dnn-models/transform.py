@@ -20,7 +20,7 @@ import onnx.helper
 import numpy as np
 
 from configs import configs
-from utils import extract_data, find_initializer, find_node_by_output, find_tensor_value_info, load_model, get_model_ops, DataLayout
+from utils import extract_data, get_attr, find_kernel_shape, find_initializer, find_node_by_output, find_tensor_value_info, infer_auto_pad, load_model, get_model_ops, DataLayout
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -103,6 +103,8 @@ class ConvNodeFlags(ctypes.Structure):
         ("input_tile_c", ctypes.c_uint16),
         ("output_tile_c", ctypes.c_uint16),
         ("pads", ctypes.c_uint8 * 4),
+        ("kernel_shape", ctypes.c_uint8 * 2),
+        ("strides", ctypes.c_uint8 * 2),
     ]
 
 class MaxPoolFlags(ctypes.Structure):
@@ -137,16 +139,14 @@ class ExtraNodeFlags(ctypes.Union):
 
 class NodeFlags_bits(ctypes.LittleEndianStructure):
     _fields_ = [
-        ("generic", ctypes.c_uint8, 8),
-        ("kernel_size", ctypes.c_uint8, 4),
-        ("stride", ctypes.c_uint8, 4),
+        ("generic", ctypes.c_uint8),
         ("extra", ExtraNodeFlags),
     ]
 
 class NodeFlags(ctypes.Union):
     _fields_ = [
         ("b", NodeFlags_bits),
-        ("as_bytes", ctypes.c_uint8 * 10),
+        ("as_bytes", ctypes.c_uint8 * 14),
     ]
 
     def __repr__(self):
@@ -226,15 +226,6 @@ onnx_model = load_model(config, for_deployment=True)
 
 names = {}
 
-def get_attr(node, attr_name):
-    for attr in node.attribute:
-        if attr.name != attr_name:
-            continue
-        return onnx.helper.get_attribute_value(attr)
-
-    # Not found
-    return None
-
 # Remove Squeeze and Reshape nodes with constants as the input
 replaced_nodes_map = {}
 
@@ -311,22 +302,6 @@ for idx, initializer in enumerate(onnx_model.graph.initializer):
 Constants.N_INPUT = len(names.keys())
 logger.info('Constants.N_INPUT = %d', Constants.N_INPUT)
 
-def infer_auto_pad(node):
-    # https://github.com/onnx/onnx/blob/master/docs/Operators.md#conv
-    conv_flags = node.flags.b.extra.conv
-    auto_pad = get_attr(node, 'auto_pad')
-    pads = get_attr(node ,'pads')
-    if pads:
-        assert len(pads) <= 4
-        # https://stackoverflow.com/questions/4145775/how-do-i-convert-a-python-list-into-a-c-array-by-using-ctypes
-        conv_flags.pads = (ctypes.c_uint8 * 4)(*pads)
-    if auto_pad in (b'SAME_UPPER', b'SAME_LOWER'):
-        kernel_shape = get_attr(node, 'kernel_shape')
-        conv_flags.pads[0] = conv_flags.pads[2] = kernel_shape[0] // 2
-        conv_flags.pads[1] = conv_flags.pads[3] = kernel_shape[1] // 2
-        if conv_flags.pads[0]*2+1 != kernel_shape[0] or conv_flags.pads[1]*2+1 != kernel_shape[1]:
-            raise NotImplementedError
-
 for idx, n in enumerate(nodes):
     if n.op_type == 'Dropout':
         output = n.output[:1]  # we don't care the second output `mask`
@@ -334,21 +309,20 @@ for idx, n in enumerate(nodes):
         output = n.output
     if n.op_type == 'Conv':
         conv_param_names.add(n.input[1])
-        infer_auto_pad(n)
-    if n.op_type == 'MaxPool':
-        kernel_shape = get_attr(n, 'kernel_shape')  # this field is required
-        assert len(kernel_shape) == 2
-        n.flags.b.extra.maxpool.kernel_shape = (ctypes.c_uint8*2)(*kernel_shape)
+        # https://stackoverflow.com/questions/4145775/how-do-i-convert-a-python-list-into-a-c-array-by-using-ctypes
+        n.flags.b.extra.conv.pads = (ctypes.c_uint8 * 4)(*infer_auto_pad(onnx_model, n))
+    if n.op_type in ('Conv', 'MaxPool'):
+        extra_flags = getattr(n.flags.b.extra, n.op_type.lower())
+        kernel_shape = find_kernel_shape(onnx_model, n)
+        extra_flags.kernel_shape = (ctypes.c_uint8*2)(*kernel_shape)
         strides = get_attr(n, 'strides')
         if strides is not None:
-            n.flags.b.extra.maxpool.strides = (ctypes.c_uint8*2)(*strides)
+            extra_flags.strides = (ctypes.c_uint8*2)(*strides)
         else:
             # "If not present, the stride defaults to 1 along each spatial axis."
+            # https://github.com/onnx/onnx/blob/main/docs/Operators.md#Conv
             # https://github.com/onnx/onnx/blob/main/docs/Operators.md#maxpool
-            n.flags.b.extra.maxpool.strides = (ctypes.c_uint8*2)(1, 1)
-    if n.op_type in ('MaxPool', 'Conv'):
-        stride = get_attr(n, 'strides')[0]
-        n.flags.b.stride = stride
+            extra_flags.strides = (ctypes.c_uint8*2)(1, 1)
     if n.op_type == 'MaxPool':
         ceil_mode = get_attr(n, 'ceil_mode')
         if ceil_mode:

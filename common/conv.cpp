@@ -49,7 +49,7 @@ typedef struct ConvTaskParams {
     uint16_t CHANNEL; // Cannot use C as a variable name here as C is a macro on MSP430 :(
     uint16_t OUTPUT_CHANNEL;
     uint16_t N_FILTERS;
-    uint16_t stride;
+    const uint8_t* strides;
     uint16_t input_tile_c_offset;
     uint16_t input_tile_c_index;
     uint16_t tile_h;
@@ -149,8 +149,8 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
     }
     stop_cpu_counter();
 #endif
-    uint16_t output_h = (cur_input_h - conv_params->input_h_first) / conv_params->stride,
-             output_w = (conv_params->input_w - conv_params->input_w_first) / conv_params->stride;
+    uint16_t output_h = (cur_input_h - conv_params->input_h_first) / conv_params->strides[0],
+             output_w = (conv_params->input_w - conv_params->input_w_first) / conv_params->strides[1];
     // use NWHC so that output is written continuously on the address space
     uint16_t cur_output_data_offset =
              conv_params->OUTPUT_W * conv_params->OUTPUT_H * (conv_params->input_tile_c_index * conv_params->OUTPUT_CHANNEL) +  // n
@@ -430,7 +430,7 @@ static void handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
     dest = lea_buffer;
 
     int32_t h_start = int16_max(conv_params->input_h,                                                           0             ),
-            h_end =   int16_min(conv_params->input_h+conv_params->tile_h+(conv_params->kH-conv_params->stride), conv_params->H)-1;
+            h_end =   int16_min(conv_params->input_h+conv_params->tile_h+(conv_params->kH-conv_params->strides[0]), conv_params->H)-1;
 
     my_printf_debug("Reinitialize input buffer" NEWLINE "inputs_len = %d" NEWLINE, inputs_len);
 
@@ -529,7 +529,7 @@ static void handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
     dump_matrix_debug(lea_buffer, inputs_len, ValueInfo(conv_params->real_conv_input, nullptr), false);
 
     int16_t max_input_h = MIN_VAL(conv_params->input_h+conv_params->tile_h-1, conv_params->input_h_last);
-    for (int16_t cur_input_h = conv_params->input_h; cur_input_h <= max_input_h; cur_input_h += conv_params->stride) {
+    for (int16_t cur_input_h = conv_params->input_h; cur_input_h <= max_input_h; cur_input_h += conv_params->strides[0]) {
         // filter_idx is set to initial_c in handle_conv
         convTask(cur_input_h, conv_params);
         // reset here for further processing
@@ -559,7 +559,7 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
     conv_params->kH = conv_filter->dims[2];
     conv_params->kW = conv_filter->dims[3];
 
-    conv_params->stride = conv_params->flags->stride;
+    conv_params->strides = conv_params->flags->extra.conv.strides;
 
     const uint8_t* pads = conv_params->flags->extra.conv.pads;
     enum { PAD_H_BEGIN = 0, PAD_W_BEGIN = 1, PAD_H_END = 2, PAD_W_END = 3 };
@@ -568,8 +568,8 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
     conv_params->input_h_last = H + pads[PAD_H_END] - conv_params->kH;
     conv_params->input_w_last = W + pads[PAD_W_END] - conv_params->kW;
 
-    conv_params->OUTPUT_H = (conv_params->input_h_last - conv_params->input_h_first) / conv_params->stride + 1;
-    conv_params->OUTPUT_W = (conv_params->input_w_last - conv_params->input_w_first) / conv_params->stride + 1;
+    conv_params->OUTPUT_H = (conv_params->input_h_last - conv_params->input_h_first) / conv_params->strides[0] + 1;
+    conv_params->OUTPUT_W = (conv_params->input_w_last - conv_params->input_w_first) / conv_params->strides[1] + 1;
 
 #if JAPARI
     start_cpu_counter(offsetof(Counters, stripping));
@@ -626,7 +626,7 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 
     ConvTaskParams *conv_params = &conv_params_obj;
 
-    conv_params->tile_h = MIN_VAL(H, DEFAULT_TILE_H * conv_params->stride);
+    conv_params->tile_h = MIN_VAL(H, DEFAULT_TILE_H * conv_params->strides[0]);
 
     my_printf_debug("n_tiles_c = %d" NEWLINE, conv_params->n_tiles_c);
 
@@ -702,14 +702,14 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     conv_params->filter_idx += filter_offset_in_tile;
     first_unfinished_value_offset /= conv_params->OUTPUT_CHANNEL;
 
-    conv_params->input_w += first_unfinished_value_offset / conv_params->OUTPUT_H * conv_params->stride;
+    conv_params->input_w += first_unfinished_value_offset / conv_params->OUTPUT_H * conv_params->strides[1];
     first_unfinished_value_offset %= conv_params->OUTPUT_H;
 
-    conv_params->input_h += first_unfinished_value_offset * conv_params->stride;
+    conv_params->input_h += first_unfinished_value_offset * conv_params->strides[0];
 
     my_printf_debug("initial output N = %d" NEWLINE, conv_params->input_tile_c_index);
-    my_printf_debug("initial output H = %d" NEWLINE, (conv_params->input_h - conv_params->input_h_first) / conv_params->stride);
-    my_printf_debug("initial output W = %d" NEWLINE, (conv_params->input_w - conv_params->input_w_first) / conv_params->stride);
+    my_printf_debug("initial output H = %d" NEWLINE, (conv_params->input_h - conv_params->input_h_first) / conv_params->strides[0]);
+    my_printf_debug("initial output W = %d" NEWLINE, (conv_params->input_w - conv_params->input_w_first) / conv_params->strides[1]);
     my_printf_debug("initial output C = %d" NEWLINE, conv_params->filter_idx);
     // = happens when all values are finished
     MY_ASSERT(conv_params->input_tile_c_index <= conv_params->n_tiles_c);
@@ -748,7 +748,7 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
         conv_params->filter_offset = conv_params->kH * conv_params->dest_offset;
 
         while (true) {
-            for (; conv_params->input_w <= conv_params->input_w_last; conv_params->input_w += conv_params->stride) {
+            for (; conv_params->input_w <= conv_params->input_w_last; conv_params->input_w += conv_params->strides[1]) {
                 for (; conv_params->input_h <= conv_params->input_h_last; conv_params->input_h += conv_params->tile_h) {
                     handle_conv_inner_loop(model, conv_params);
                 }

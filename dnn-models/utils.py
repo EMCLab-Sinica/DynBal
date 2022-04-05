@@ -206,6 +206,39 @@ def find_node_by_output(nodes: List[onnx.NodeProto], output_name: str) -> onnx.N
             if output == output_name:
                 return node
 
+def get_attr(node, attr_name):
+    for attr in node.attribute:
+        if attr.name != attr_name:
+            continue
+        return onnx.helper.get_attribute_value(attr)
+
+    # Not found
+    return None
+
+def find_kernel_shape(model, node):
+    kernel_shape = get_attr(node, 'kernel_shape')
+    if not kernel_shape:
+        if node.op_type == 'MaxPool': # this field is required for maxpool
+            raise Exception('kernel_shape is required for MaxPool')
+        weights = node.input[1]
+        w = find_initializer(model, weights)
+        kernel_shape = w.dims[2:]
+    assert len(kernel_shape) == 2
+    return kernel_shape
+
+def infer_auto_pad(model, node):
+    # https://github.com/onnx/onnx/blob/master/docs/Operators.md#conv
+    auto_pad = get_attr(node, 'auto_pad')
+    pads = get_attr(node ,'pads') or [0]*4
+    assert len(pads) <= 4
+    if auto_pad in (b'SAME_UPPER', b'SAME_LOWER'):
+        kernel_shape = find_kernel_shape(model, node)
+        pads[0] = pads[2] = kernel_shape[0] // 2
+        pads[1] = pads[3] = kernel_shape[1] // 2
+        if pads[0]*2+1 != kernel_shape[0] or pads[1]*2+1 != kernel_shape[1]:
+            raise NotImplementedError
+    return pads
+
 def numpy_type_to_onnx_elem_type(numpy_type):
     if numpy_type == np.float32:
         return onnx.TensorProto.FLOAT
