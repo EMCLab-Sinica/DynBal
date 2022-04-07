@@ -6,7 +6,7 @@ import numpy as np
 import onnx
 
 TOPDIR = pathlib.Path(__file__).absolute().parents[1]
-sys.path.append(str(TOPDIR))
+sys.path.append(str(TOPDIR / 'dnn-models'))
 
 from configs import configs
 from utils import dynamic_shape_inference, onnxruntime_prepare_model, onnxruntime_get_intermediate_tensor, load_model, import_model_output_pb2

@@ -420,7 +420,7 @@ def remap_inputs(model: onnx.ModelProto, input_mapping: Dict[str, str]):
 def import_model_output_pb2():
     try:
         orig_sys_path = sys.path.copy()
-        sys.path.append(str(pathlib.Path(__file__).resolve().parent / 'build'))
+        sys.path.append(str(pathlib.Path(__file__).resolve().parents[1] / 'build'))
         import model_output_pb2
         return model_output_pb2
     finally:

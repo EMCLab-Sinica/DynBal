@@ -5,7 +5,7 @@ import sys
 import numpy as np
 
 TOPDIR = pathlib.Path(__file__).absolute().parents[1]
-sys.path.append(str(TOPDIR))
+sys.path.append(str(TOPDIR / 'dnn-models'))
 
 from utils import import_model_output_pb2
 
