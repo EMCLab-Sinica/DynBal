@@ -24,9 +24,7 @@ void handle_relu(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 
     const ParameterInfo *X = input[0];
 
-    uint16_t bitwidth = X->bitwidth;
-    MY_ASSERT(bitwidth == 16);
-    int16_t data_len = X->params_len / (bitwidth / 8);
+    int16_t data_len = X->params_len / 2;
 
     uint16_t output_offset = 0;
 #if INTERMITTENT
@@ -139,7 +137,6 @@ void handle_reshape(Model *model, const ParameterInfo *input[], ParameterInfo *o
     my_printf_debug("Reshape!" NEWLINE);
 
     const ParameterInfo *data = input[0], *shape = input[1];
-    MY_ASSERT(shape->bitwidth == 64);
     /*
      * At most one dimension of the new shape can be -1. In this case, the
      * value is inferred from the size of the tensor and the remaining
@@ -248,12 +245,8 @@ void handle_concat(Model *model, const ParameterInfo *input[], ParameterInfo *ou
     output->dims[1] *= 2;
     output->param_flags |= SEPARATE_TILING;
 
-    // The one with smaller `scale` (with larger values) is scaled down
-    output->scale = MAX_VAL(A->scale, B->scale);
-
-    // saving slots here as it might be changed during the downscaling loop above
-    output->extra_info[0] = A->parameter_info_idx;
-    output->extra_info[1] = B->parameter_info_idx;
+    MY_ASSERT(A->scale.toFloat() == B->scale.toFloat());
+    output->scale = A->scale;
     output->slot = A->slot;
 
     dump_params_nhwc_debug(model, A);

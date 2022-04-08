@@ -36,7 +36,6 @@ class Constants:
     SLOT_PARAMETERS = 0xfe
     SLOT_TEST_SET = 0xff
     NODE_NAME_LEN = 60
-    EXTRA_INFO_LEN = 3  # for memory alignment
     TURNING_POINTS_LEN = 8
     MODEL_NODES_LEN = 0
     INPUTS_DATA_LEN = 0
@@ -591,8 +590,8 @@ for params in parameters:
         dims = model_data.images[0].shape
         model_parameters_info.write(to_bytes(parameters_slot.offset, size=32))  # params_offset
         model_parameters_info.write(to_bytes(np.prod(dims) * 2, size=32))  # A _q15 is 16-bit
-        model_parameters_info.write(to_bytes(16, size=8))                # bitwidth
         model_parameters_info.write(to_bytes(Constants.SLOT_TEST_SET, size=8))     # slot
+        model_parameters_info.write(to_bytes(0, size=8))     # param_flags
         # extend_dims
         model_parameters_info.write(to_bytes(1))
         for dim in dims:
@@ -620,7 +619,6 @@ for params in parameters:
                 param_scale = config['scale']
             slot.target.write(to_bytes(_Q15(np.array(float_data) / param_scale, 'Parameter')))
             slot.offset += 2 * len(float_data)
-            model_parameters_info.write(to_bytes(16, size=8)) # bitwidth
         elif params.data_type == onnx.TensorProto.INT64:
             if params.int64_data:
                 int64_data = params.int64_data
@@ -634,10 +632,10 @@ for params in parameters:
             for param in int64_data:
                 slot.target.write(to_bytes(param, size=64))
                 slot.offset += 8
-            model_parameters_info.write(to_bytes(64, size=8)) # bitwidth
         else:
             assert False
         model_parameters_info.write(to_bytes(slot.slot_id, size=8))  # slot
+        model_parameters_info.write(to_bytes(0, size=8))  # param_flags
         if len(params.dims) == 4:
             channels = params.dims[1]
         else:
@@ -651,9 +649,6 @@ for params in parameters:
         write_scale(model_parameters_info, param_scale)
 
     # common to input and non-inputs
-    model_parameters_info.write(to_bytes(0, size=8))                 # param_flags
-    for _ in range(Constants.EXTRA_INFO_LEN):
-        model_parameters_info.write(to_bytes(0, size=8))             # extra_info
     model_parameters_info.write(to_bytes(parameter_info_idx))        # parameter_info_idx
     parameter_info_idx += 1
 
@@ -662,15 +657,11 @@ intermediate_parameters_info = outputs['intermediate_parameters_info']
 for idx, n in enumerate(nodes):
     intermediate_parameters_info.write(to_bytes(0, size=32))  # params_offset
     intermediate_parameters_info.write(to_bytes(0, size=32))  # params_len
-    intermediate_parameters_info.write(to_bytes(0, size=8))  # bitwidth
     intermediate_parameters_info.write(to_bytes(0, size=8))  # slot
-    intermediate_parameters_info.write(to_bytes(0))         # dummy
+    intermediate_parameters_info.write(to_bytes(0, size=8))  # param_flags
     for _ in range(4):  # dims[4]
         intermediate_parameters_info.write(to_bytes(0))
-    intermediate_parameters_info.write(to_bytes(0))   # scale
-    intermediate_parameters_info.write(to_bytes(0, size=8))     # param_flags
-    for _ in range(Constants.EXTRA_INFO_LEN):
-        intermediate_parameters_info.write(to_bytes(0, size=8)) # extra_info
+    intermediate_parameters_info.write(to_bytes(0, size=32))   # scale
     intermediate_parameters_info.write(to_bytes(parameter_info_idx))             # parameter_info_idx
     parameter_info_idx += 1
 

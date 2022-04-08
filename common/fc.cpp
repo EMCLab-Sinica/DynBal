@@ -26,7 +26,6 @@ void alloc_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
 #else
     output->dims[1] = B->dims[1];
 #endif
-    output->bitwidth = 16;
     output->slot = get_next_slot(model, A);
     output->scale = A->scale * B->scale;
 

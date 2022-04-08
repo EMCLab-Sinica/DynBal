@@ -396,7 +396,8 @@ static void handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
     int8_t real_input_index = -1;
     if (conv_params->conv_input->param_flags & SEPARATE_TILING) {
         real_input_index = (2 * conv_params->input_tile_c_index >= conv_params->n_tiles_c) ? 1 : 0;
-        conv_params->real_conv_input = get_parameter_info(conv_params->conv_input->extra_info[real_input_index]);
+        const Node* input_node = get_node(conv_params->conv_input);
+        conv_params->real_conv_input = get_parameter_info(input_node->inputs[real_input_index]);
     } else {
         conv_params->real_conv_input = conv_params->conv_input;
     }
@@ -540,8 +541,6 @@ static void handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
 void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node) {
     const ParameterInfo *conv_input = input[0], *conv_filter = input[1];
 
-    MY_ASSERT(conv_input->bitwidth == 16 && conv_filter->bitwidth == 16);
-
 #if !JAPARI
     // skip the check for JAPARI as it is too complex
     MY_ASSERT(conv_input->dims[1] == conv_filter->dims[1]);
@@ -598,7 +597,6 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
     my_printf_debug("input_tile_c=%d, output_tile_c=%d" NEWLINE, conv_params->flags->conv.input_tile_c, conv_params->flags->conv.output_tile_c);
 
     /* XXX: extend flags; assume dilation=(1, 1) for now */
-    output->bitwidth = 16;
     output->slot = get_next_slot(model, conv_input);
     output->params_len = conv_params->n_tiles_c * conv_params->OUTPUT_H * conv_params->OUTPUT_W * OUTPUT_CHANNEL * sizeof(int16_t);
     output->dims[0] = 1;

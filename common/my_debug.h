@@ -69,7 +69,6 @@ class ModelOutput;
 class LayerOutput;
 extern std::unique_ptr<ModelOutput> model_output_data;
 
-void dump_value(Model *model, const ParameterInfo *cur_param, LayerOutput* layer_out, size_t offset, bool has_state = true);
 void dump_matrix(const int16_t *mat, size_t len, const ValueInfo& val_info, bool has_state = true);
 void dump_matrix(const int16_t *mat, size_t rows, size_t cols, const ValueInfo& val_info, bool has_state = true);
 void dump_params(Model *model, const ParameterInfo *cur_param, const char* layer_name = nullptr);
@@ -81,7 +80,6 @@ void check_nvm_write_address_impl(uint32_t nvm_offset, size_t n);
 
 #if MY_DEBUG >= MY_DEBUG_VERBOSE
 
-#define dump_value_debug dump_value
 #define dump_matrix_debug dump_matrix
 #define dump_model_debug dump_model
 #define my_printf_debug my_printf
@@ -89,7 +87,6 @@ void check_nvm_write_address_impl(uint32_t nvm_offset, size_t n);
 
 #else
 
-#define dump_value_debug(...)
 #define dump_matrix_debug(...)
 #define dump_matrix_debug(...)
 #define dump_model_debug(...)

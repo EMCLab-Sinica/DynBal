@@ -43,16 +43,6 @@ static void print_q15(LayerOutput* layer_out, int16_t val, const ValueInfo& val_
     }
 }
 
-void dump_value(Model *model, const ParameterInfo *cur_param, LayerOutput* layer_out, size_t offset, bool has_state) {
-    if (cur_param->bitwidth == 16) {
-        print_q15(layer_out, get_q15_param(model, cur_param, offset), ValueInfo(cur_param, model), has_state);
-    } else if (cur_param->bitwidth == 64) {
-        my_printf("%" PRId64 " ", get_int64_param(cur_param, offset));
-    } else {
-        MY_ASSERT(false);
-    }
-}
-
 void dump_matrix(const int16_t *mat, size_t len, const ValueInfo& val_info, bool has_state) {
     my_printf("Scale: %f" NEWLINE, val_info.scale);
     for (size_t j = 0; j < len; j++) {
@@ -147,7 +137,7 @@ void dump_params_nhwc(Model *model, const ParameterInfo *cur_param, const char* 
                     for (uint16_t w = 0; w < W; w++) {
                         // internal format is NHWC
                         size_t offset2 = n * H * W * CHANNEL + H * W * tile_c_base + h * W * cur_tile_c + w * cur_tile_c + c;
-                        dump_value(model, cur_param, layer_out, offset2, offset_has_state(offset2));
+                        print_q15(layer_out, get_q15_param(model, cur_param, offset2), ValueInfo(cur_param, model), offset_has_state(offset2));
                     }
                     PRINT_NEWLINE_IF_DATA_NOT_SAVED
                 }
@@ -194,7 +184,7 @@ void dump_params(Model *model, const ParameterInfo *cur_param, const char* layer
                 for (uint16_t l = 0; l < W; l++) {
                     // internal format is NCHW
                     size_t offset = i * H * W * CHANNEL + j * H * W + k * W + l;
-                    dump_value(model, cur_param, layer_out, offset, offset_has_state(offset));
+                    print_q15(layer_out, get_q15_param(model, cur_param, offset), ValueInfo(cur_param, model), offset_has_state(offset));
                 }
                 PRINT_NEWLINE_IF_DATA_NOT_SAVED
             }

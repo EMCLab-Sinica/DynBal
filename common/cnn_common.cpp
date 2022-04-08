@@ -39,7 +39,6 @@ SlotInfo* get_slot_info(Model* model, uint8_t i) {
 }
 
 int16_t get_q15_param(Model* model, const ParameterInfo *param, uint16_t i) {
-    MY_ASSERT(param->bitwidth == 16);
     if (param->slot == SLOT_TEST_SET) {
         int16_t ret;
         read_from_samples(&ret, i, sizeof(int16_t));
@@ -60,7 +59,6 @@ void put_q15_param(ParameterInfo *param, uint16_t i, int16_t val) {
 }
 
 int64_t get_int64_param(const ParameterInfo *param, size_t i) {
-    MY_ASSERT(param->bitwidth == 64);
     MY_ASSERT(param->slot == SLOT_PARAMETERS);
     int64_t ret;
     my_memcpy_from_parameters(&ret, param, i * sizeof(int64_t), sizeof(int64_t));
@@ -151,8 +149,6 @@ static void handle_node(Model *model, uint16_t node_idx) {
 #if STATEFUL
     my_printf_debug("New output state bit=%d" NEWLINE, get_state_bit(model, output->slot));
 #endif
-
-    MY_ASSERT(output->bitwidth);
 
     commit_intermediate_parameter_info(node_idx);
 

@@ -85,25 +85,18 @@ struct Scale {
 typedef struct ParameterInfo {
     uint32_t params_offset;
     uint32_t params_len;  /* in bytes */
-    /* Known bitwidth values:
-     * 16: q15
-     * 32: iq31
-     * 64: INT64 (from ONNX)
-     */
-    uint8_t bitwidth;
     /* A flag to indicate where the data are. Possible values are SLOT_TEST_SET,
      * SLOT_PARAMETERS and a value in [0, NUM_SLOTS-1].
      */
     uint8_t slot;
+    uint8_t param_flags;
     // uint8_t is not enough. For example, fully connected layer in MNIST has dims 256x1
     uint16_t dims[4];
     Scale scale;
-    uint8_t param_flags;
-    uint8_t extra_info[EXTRA_INFO_LEN];
     uint16_t parameter_info_idx; // must be the last member of this struct
 } ParameterInfo;
 
-static_assert(sizeof(ParameterInfo) == 28, "Unexpected size for ParameterInfo");
+static_assert(sizeof(ParameterInfo) == 24, "Unexpected size for ParameterInfo");
 
 typedef struct SlotInfo {
 #if INDIRECT_RECOVERY

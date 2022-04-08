@@ -131,7 +131,6 @@ static uint16_t maxpool_patch(MaxPoolParams *maxpool_params) {
                 val *= 2;
                 stop_cpu_counter();
 #endif
-                // dump_value_debug(model, maxpool_params->data, val_offset);
                 my_printf_debug("% 6d ", val);
                 if (val > output_buffer[output_channel_offset]) {
                     output_buffer[output_channel_offset] = val;
@@ -254,7 +253,6 @@ void handle_maxpool(Model *model, const ParameterInfo *input[], ParameterInfo *o
                     stop_cpu_counter();
 #endif
 #if MY_DEBUG >= MY_DEBUG_VERBOSE
-                    // need a space as dump_value does not append spaces when DUMP_INTEGERS is not defined
                     my_printf_debug(" max=");
                     for (uint8_t idx = 0; idx < len; idx++) {
                         my_printf_debug("% 6d ", lea_buffer[idx]);
@@ -393,7 +391,6 @@ void alloc_globalaveragepool(Model *model, const ParameterInfo *input[], Paramet
     output->dims[0] = output->dims[2] = output->dims[3] = 1;
     output->dims[1] = output_len;
     output->params_len = output_len * sizeof(int16_t);
-    output->bitwidth = 16;
     output->slot = get_next_slot(model, data);
 }
 
