@@ -1,15 +1,3 @@
-/*
- * A simulator for running Stateful NN on PC.
- *
- * To build it, basic toolchain for C/C++ development is necessary:
- *
- * CMake >= 2.8.12
- * A modern compiler (gcc or clang) supporting C++ 14
- *
- * After transforming the model with `transform.py`, the simulator can be built with `cmake -B build -S .` and `make -C build`.
- * The built program can be run with `./build/intermittent-cnn`.
- */
-
 #ifdef PC_BUILD
 
 #include "intermittent-cnn.h"
@@ -56,17 +44,14 @@ static void save_model_output_data() {
 #endif
 
 int main(int argc, char* argv[]) {
-    int ret = 0, opt_ch, button_pushed = 0, read_only = 0, n_samples = 0;
+    int ret = 0, opt_ch, read_only = 0, n_samples = 0;
     Model *model;
 
 #ifdef __linux__
     int nvm_fd = -1;
 
-    while((opt_ch = getopt(argc, argv, "bfrc:s:")) != -1) {
+    while((opt_ch = getopt(argc, argv, "frc:s:")) != -1) {
         switch (opt_ch) {
-            case 'b':
-                button_pushed = 1;
-                break;
             case 'r':
                 read_only = 1;
                 break;
@@ -128,11 +113,6 @@ int main(int argc, char* argv[]) {
 #endif
 
     model = load_model_from_nvm();
-
-    // emulating button_pushed - treating as a fresh run
-    if (button_pushed) {
-        model->version = 0;
-    }
 
     if (!model->version) {
         // the first time
