@@ -126,7 +126,7 @@ static void flip_filter_state_bits(ConvTaskParams *conv_params, uint16_t n_filte
 
 static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
     // cur_output_tile_c should be signed, or MAX_VAL below is broken with TI's compiler
-    int16_t output_tile_c = conv_params->flags->extra.conv.output_tile_c;
+    int16_t output_tile_c = conv_params->flags->conv.output_tile_c;
     int16_t cur_output_tile_c = output_tile_c - conv_params->filter_idx % output_tile_c;
     my_printf_debug("cur_output_tile_c = %d" NEWLINE, cur_output_tile_c);
     MY_ASSERT(cur_output_tile_c > 0);
@@ -414,7 +414,7 @@ static void handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
     int32_t w_start = int16_max(0, conv_params->input_w),
             w_end   = int16_min(conv_params->input_w+conv_params->kW-1, conv_params->W-1);
     int16_t *dest;
-    int16_t max_n_filters = conv_params->flags->extra.conv.output_tile_c;
+    int16_t max_n_filters = conv_params->flags->conv.output_tile_c;
 #if JAPARI
     start_cpu_counter(offsetof(Counters, memory_layout));
     max_n_filters *= 2;
@@ -533,7 +533,7 @@ static void handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
         // filter_idx is set to initial_c in handle_conv
         convTask(cur_input_h, conv_params);
         // reset here for further processing
-        conv_params->filter_idx = conv_params->filter_tile_index * conv_params->flags->extra.conv.output_tile_c;
+        conv_params->filter_idx = conv_params->filter_tile_index * conv_params->flags->conv.output_tile_c;
     }
 }
 
@@ -559,9 +559,9 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
     conv_params->kH = conv_filter->dims[2];
     conv_params->kW = conv_filter->dims[3];
 
-    conv_params->strides = conv_params->flags->extra.conv.strides;
+    conv_params->strides = conv_params->flags->conv.strides;
 
-    const uint8_t* pads = conv_params->flags->extra.conv.pads;
+    const uint8_t* pads = conv_params->flags->conv.pads;
     enum { PAD_H_BEGIN = 0, PAD_W_BEGIN = 1, PAD_H_END = 2, PAD_W_END = 3 };
     conv_params->input_h_first = -pads[PAD_H_BEGIN];
     conv_params->input_w_first = -pads[PAD_W_BEGIN];
@@ -577,25 +577,25 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
     OUTPUT_CHANNEL = extend_for_footprints(OUTPUT_CHANNEL, conv_params->force_align_footprints);
     bool need_skipping = has_footprints(conv_input);
     if (need_skipping) {
-        conv_params->n_tiles_c = CHANNEL / (BATCH_SIZE + 1) * BATCH_SIZE / conv_params->flags->extra.conv.input_tile_c;
+        conv_params->n_tiles_c = CHANNEL / (BATCH_SIZE + 1) * BATCH_SIZE / conv_params->flags->conv.input_tile_c;
     }
     stop_cpu_counter();
     if (!need_skipping)
 #endif
     {
-        conv_params->n_tiles_c = CHANNEL / conv_params->flags->extra.conv.input_tile_c;
+        conv_params->n_tiles_c = CHANNEL / conv_params->flags->conv.input_tile_c;
     }
 #if STATEFUL
     start_cpu_counter(offsetof(Counters, memory_layout));
-    if (conv_params->flags->extra.conv.output_tile_c % BATCH_SIZE) {
-        conv_params->output_padding = BATCH_SIZE - conv_params->flags->extra.conv.output_tile_c % BATCH_SIZE;
+    if (conv_params->flags->conv.output_tile_c % BATCH_SIZE) {
+        conv_params->output_padding = BATCH_SIZE - conv_params->flags->conv.output_tile_c % BATCH_SIZE;
     } else {
         conv_params->output_padding = 0;
     }
     OUTPUT_CHANNEL += conv_params->output_padding;
     stop_cpu_counter();
 #endif
-    my_printf_debug("input_tile_c=%d, output_tile_c=%d" NEWLINE, conv_params->flags->extra.conv.input_tile_c, conv_params->flags->extra.conv.output_tile_c);
+    my_printf_debug("input_tile_c=%d, output_tile_c=%d" NEWLINE, conv_params->flags->conv.input_tile_c, conv_params->flags->conv.output_tile_c);
 
     /* XXX: extend flags; assume dilation=(1, 1) for now */
     output->bitwidth = 16;
@@ -670,7 +670,7 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     my_printf_debug("old_output_offset = %d" NEWLINE, conv_params->old_output_offset);
 #endif
 
-    uint16_t cur_output_tile_c = conv_params->flags->extra.conv.output_tile_c;
+    uint16_t cur_output_tile_c = conv_params->flags->conv.output_tile_c;
 #if JAPARI
     start_cpu_counter(offsetof(Counters, embedding));
     cur_output_tile_c = extend_for_footprints(cur_output_tile_c, conv_params->force_align_footprints);
@@ -680,11 +680,11 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 
     conv_params->input_tile_c_index = first_unfinished_value_offset / slice_size_input_channel_tiling;
     // Not extending for JAPARI footprints here as input_tile_c_offset will be extended later
-    conv_params->input_tile_c_offset = conv_params->input_tile_c_index * conv_params->flags->extra.conv.input_tile_c;
+    conv_params->input_tile_c_offset = conv_params->input_tile_c_index * conv_params->flags->conv.input_tile_c;
     first_unfinished_value_offset %= slice_size_input_channel_tiling;
 
     conv_params->filter_tile_index = (first_unfinished_value_offset % conv_params->OUTPUT_CHANNEL) / cur_output_tile_c;
-    conv_params->filter_idx = conv_params->filter_tile_index * conv_params->flags->extra.conv.output_tile_c;
+    conv_params->filter_idx = conv_params->filter_tile_index * conv_params->flags->conv.output_tile_c;
 
 #if STATEFUL
     start_cpu_counter(offsetof(Counters, memory_layout));
@@ -724,8 +724,8 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     }
     stop_cpu_counter();
 #endif
-    for (; conv_params->input_tile_c_offset < input_channels; conv_params->input_tile_c_offset += conv_params->flags->extra.conv.input_tile_c) {
-        conv_params->cur_input_tile_c = MIN_VAL(conv_params->flags->extra.conv.input_tile_c, input_channels - conv_params->input_tile_c_offset);
+    for (; conv_params->input_tile_c_offset < input_channels; conv_params->input_tile_c_offset += conv_params->flags->conv.input_tile_c) {
+        conv_params->cur_input_tile_c = MIN_VAL(conv_params->flags->conv.input_tile_c, input_channels - conv_params->input_tile_c_offset);
         conv_params->cur_filter_tile_c = conv_params->cur_input_tile_c;
 #if JAPARI
         start_cpu_counter(offsetof(Counters, embedding));
@@ -757,10 +757,10 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
             }
             conv_params->input_w = conv_params->input_w_first;
             conv_params->filter_tile_index++;
-            if (conv_params->filter_tile_index * conv_params->flags->extra.conv.output_tile_c >= conv_params->N_FILTERS) {
+            if (conv_params->filter_tile_index * conv_params->flags->conv.output_tile_c >= conv_params->N_FILTERS) {
                 break;
             }
-            conv_params->filter_idx = conv_params->filter_tile_index * conv_params->flags->extra.conv.output_tile_c;
+            conv_params->filter_idx = conv_params->filter_tile_index * conv_params->flags->conv.output_tile_c;
 #if INDIRECT_RECOVERY
             start_cpu_counter(offsetof(Counters, state_query));
             uint32_t new_output_offset = conv_params->input_tile_c_index * conv_params->OUTPUT_CHANNEL * conv_params->OUTPUT_H * conv_params->OUTPUT_W;

@@ -191,7 +191,7 @@ void handle_reshape(Model *model, const ParameterInfo *input[], ParameterInfo *o
 void handle_squeeze(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node) {
     my_printf_debug("Squeeze!" NEWLINE);
 
-    uint8_t axes = node->flags.extra.squeeze.axes;
+    uint8_t axes = node->flags.squeeze.axes;
     // If axes is not provided, all the single dimensions will be removed from the shape.
     // https://github.com/onnx/onnx/blob/master/docs/Operators.md#squeeze
     uint8_t j = 0;
@@ -221,7 +221,7 @@ void handle_squeeze(Model *model, const ParameterInfo *input[], ParameterInfo *o
 
 void handle_unsqueeze(Model* model, const ParameterInfo* input[], ParameterInfo* output, const Node* node) {
     my_printf_debug("Unsqueeze!" NEWLINE);
-    uint8_t axes = node->flags.extra.squeeze.axes;
+    uint8_t axes = node->flags.squeeze.axes;
     uint8_t input_dim_offset = 0, output_dim_offset = 0;
     for (uint8_t i = 0; i < 4; i++) {
         if (axes & (1 << i)) {

@@ -43,13 +43,13 @@ void alloc_maxpool(Model *model, const ParameterInfo *input[], ParameterInfo *ou
     uint16_t CHANNEL = data->dims[1];
 
     MaxPoolParams* maxpool_params = &maxpool_params_obj;
-    maxpool_params->flags = &(node->flags.extra.maxpool);
+    maxpool_params->flags = &(node->flags.maxpool);
 
     maxpool_params->H = data->dims[2];
     maxpool_params->W = data->dims[3];
     maxpool_params->stride_h = maxpool_params->flags->strides[STRIDE_H];
     maxpool_params->stride_w = maxpool_params->flags->strides[STRIDE_W];
-    maxpool_params->ceil_mode = (node->flags.generic & MAXPOOL_CEIL);
+    maxpool_params->ceil_mode = node->flags.maxpool.ceil;
     if (!maxpool_params->ceil_mode) {
         maxpool_params->new_H = maxpool_params->H / maxpool_params->stride_h;
         maxpool_params->new_W = maxpool_params->W / maxpool_params->stride_w;
@@ -57,7 +57,7 @@ void alloc_maxpool(Model *model, const ParameterInfo *input[], ParameterInfo *ou
         maxpool_params->new_H = (maxpool_params->H + maxpool_params->stride_h - 1) / maxpool_params->stride_h;
         maxpool_params->new_W = (maxpool_params->W + maxpool_params->stride_w - 1) / maxpool_params->stride_w;
     }
-    maxpool_params->need_nhwc2nchw = (node->flags.generic & NHWC2NCHW);
+    maxpool_params->need_nhwc2nchw = node->flags.maxpool.nhwc2nchw;
 
 #if JAPARI
     start_cpu_counter(offsetof(Counters, embedding));

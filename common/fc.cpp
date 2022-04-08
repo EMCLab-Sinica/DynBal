@@ -32,7 +32,7 @@ void alloc_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
 
     uint16_t output_len = output->dims[0] * output->dims[1];
 
-    output->params_len = output_len * upper_gauss(B->dims[0], node->flags.extra.gemm.tile_channel) * sizeof(int16_t);
+    output->params_len = output_len * upper_gauss(B->dims[0], node->flags.gemm.tile_channel) * sizeof(int16_t);
 }
 
 struct GemmInputChunkHandlerParams {
@@ -91,7 +91,7 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     fix_first_unfinished_value_offset(model, &first_unfinished_value_offset);
 
     tile = first_unfinished_value_offset / output_len;
-    i = tile * flags->extra.gemm.tile_channel;
+    i = tile * flags->gemm.tile_channel;
     j_with_footprints = first_unfinished_value_offset % output_len;
 
 #if JAPARI
@@ -105,8 +105,8 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     stop_cpu_counter();
 #endif
 
-    for (; i < B->dims[0]; i += flags->extra.gemm.tile_channel, tile++) {
-        const uint16_t tile_channels = MIN_VAL(flags->extra.gemm.tile_channel, B->dims[0] - i);
+    for (; i < B->dims[0]; i += flags->gemm.tile_channel, tile++) {
+        const uint16_t tile_channels = MIN_VAL(flags->gemm.tile_channel, B->dims[0] - i);
         const uint16_t extended_tile_channels = tile_channels + 2;
 
 #if JAPARI
@@ -259,7 +259,7 @@ void handle_gemmmerge(Model *model, const ParameterInfo *input[], ParameterInfo 
 
     int16_t output_len = X->dims[0] * X->dims[1];
 
-    int16_t output_tile_size = node->flags.extra.gemmmerge.tile_length;
+    int16_t output_tile_size = node->flags.gemmmerge.tile_length;
     if (!output_tile_size) {
         output_tile_size = output_len;
     }

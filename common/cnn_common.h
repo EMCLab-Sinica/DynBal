@@ -8,6 +8,11 @@
  *        Data structures         *
  **********************************/
 
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic warning "-Wpadded"
+#endif
+
 struct ConvNodeFlags {
     uint16_t input_tile_c;
     uint16_t output_tile_c;
@@ -19,6 +24,8 @@ struct ConvNodeFlags {
 struct MaxPoolFlags {
     uint8_t kernel_shape[2];
     uint8_t strides[2];
+    uint8_t ceil;
+    uint8_t nhwc2nchw;
 };
 
 struct GemmNodeFlags {
@@ -33,7 +40,7 @@ struct SqueezeNodeFlags {
     uint8_t axes;
 };
 
-union ExtraNodeFlags {
+union NodeFlags {
     ConvNodeFlags conv;
     MaxPoolFlags maxpool;
     GemmNodeFlags gemm;
@@ -41,12 +48,7 @@ union ExtraNodeFlags {
     SqueezeNodeFlags squeeze;
 };
 
-struct NodeFlags {
-    uint8_t generic : 8;
-    ExtraNodeFlags extra;
-};
-
-static_assert(sizeof(NodeFlags) == 14, "Unexpected size for NodeFlags");
+static_assert(sizeof(NodeFlags) == 12, "Unexpected size for NodeFlags");
 
 typedef struct Node {
     char name[NODE_NAME_LEN];
@@ -64,7 +66,7 @@ typedef struct Node {
 #endif
 } Node;
 
-static_assert(sizeof(Node) == NODE_NAME_LEN * 2 + 20 + NUM_INPUTS * 2 + HAWAII * 8, "Unexpected size for Node");
+static_assert(sizeof(Node) == NODE_NAME_LEN * 2 + 18 + NUM_INPUTS * 2 + HAWAII * 8, "Unexpected size for Node");
 
 struct Scale {
     int16_t fract;
@@ -122,6 +124,10 @@ typedef struct Model {
 } Model;
 
 static_assert(sizeof(Model) == 8 + NUM_SLOTS * (2 + INDIRECT_RECOVERY * (2 + TURNING_POINTS_LEN * 2)), "Unexpected size for Model");
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 /**********************************
  *          Global data           *

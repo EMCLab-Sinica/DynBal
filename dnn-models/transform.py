@@ -66,10 +66,6 @@ class Constants:
 inplace_update_ops = ['Reshape', 'Softmax', 'Squeeze', 'Transpose', 'Unsqueeze']
 
 other_flags = [
-    # node flags
-    'NHWC2NCHW',
-    'MAXPOOL_CEIL',
-
     # parameter flags
     'CHANNEL_FIRST',
     'SEPARATE_TILING',  # Tiles in different channels are actually in different slots
@@ -111,6 +107,8 @@ class MaxPoolFlags(ctypes.Structure):
     _fields_ = [
         ("kernel_shape", ctypes.c_uint8 * 2),
         ("strides", ctypes.c_uint8 * 2),
+        ("ceil", ctypes.c_uint8),
+        ("nhwc2nchw", ctypes.c_uint8),
     ]
 
 class GemmNodeFlags(ctypes.Structure):
@@ -128,34 +126,15 @@ class SqueezeNodeFlags(ctypes.Structure):
         ("axes", ctypes.c_uint8, 8),  # a bitmap for axes to squeeze/unsqueeze
     ]
 
-class ExtraNodeFlags(ctypes.Union):
+class NodeFlags(ctypes.Union):
     _fields_ = [
         ("conv", ConvNodeFlags),
         ("maxpool", MaxPoolFlags),
         ("gemm", GemmNodeFlags),
         ("gemmmerge", GemmMergeNodeFlags),
         ("squeeze", SqueezeNodeFlags),
+        ("as_bytes", ctypes.c_uint8 * 12),
     ]
-
-class NodeFlags_bits(ctypes.LittleEndianStructure):
-    _fields_ = [
-        ("generic", ctypes.c_uint8),
-        ("extra", ExtraNodeFlags),
-    ]
-
-class NodeFlags(ctypes.Union):
-    _fields_ = [
-        ("b", NodeFlags_bits),
-        ("as_bytes", ctypes.c_uint8 * 14),
-    ]
-
-    def __repr__(self):
-        ret = '<NodeFlags'
-        for field in NodeFlags_bits._fields_:
-            key = field[0]
-            ret += f' {key}={getattr(self.b, key)}'
-        ret += '>'
-        return ret
 
 class ONNXNodeWrapper:
     def __init__(self, orig_node: onnx.NodeProto):
@@ -310,9 +289,9 @@ for idx, n in enumerate(nodes):
     if n.op_type == 'Conv':
         conv_param_names.add(n.input[1])
         # https://stackoverflow.com/questions/4145775/how-do-i-convert-a-python-list-into-a-c-array-by-using-ctypes
-        n.flags.b.extra.conv.pads = (ctypes.c_uint8 * 4)(*infer_auto_pad(onnx_model, n))
+        n.flags.conv.pads = (ctypes.c_uint8 * 4)(*infer_auto_pad(onnx_model, n))
     if n.op_type in ('Conv', 'MaxPool'):
-        extra_flags = getattr(n.flags.b.extra, n.op_type.lower())
+        extra_flags = getattr(n.flags, n.op_type.lower())
         kernel_shape = find_kernel_shape(onnx_model, n)
         extra_flags.kernel_shape = (ctypes.c_uint8*2)(*kernel_shape)
         strides = get_attr(n, 'strides')
@@ -326,21 +305,21 @@ for idx, n in enumerate(nodes):
     if n.op_type == 'MaxPool':
         ceil_mode = get_attr(n, 'ceil_mode')
         if ceil_mode:
-            n.flags.b.generic += op_flag('MAXPOOL_CEIL')
+            n.flags.maxpool.ceil = 1
     if n.op_type == 'Reshape':
         prev_node = n
         while prev_node and prev_node.op_type in inplace_update_ops:
             prev_node = find_node_by_output(nodes, prev_node.input[0])
         if prev_node and prev_node.op_type == 'MaxPool':
-            prev_node.flags.b.generic += op_flag('NHWC2NCHW')
+            prev_node.flags.maxpool.nhwc2nchw = 1
     if n.op_type in ('Squeeze', 'Unsqueeze'):
         axes = get_attr(n, 'axes') or []
-        node_flags = n.flags.b.extra.squeeze
+        node_flags = n.flags.squeeze
         node_flags.axes = 0
         for axis in axes:
             node_flags.axes |= (1 << axis)
     if n.op_type == 'GemmMerge':
-        n.flags.b.extra.gemmmerge.tile_length = config['gemm_tile_length']
+        n.flags.gemmmerge.tile_length = config['gemm_tile_length']
     for output_ in output:
         names[output_] = idx + Constants.N_INPUT
 
@@ -363,7 +342,7 @@ def determine_conv_tile_c(n):
 
     output_value_info = find_tensor_value_info(onnx_model, n.output[0])
     filter_info = find_initializer(onnx_model, n.input[1])
-    node_flags = n.flags.b.extra.conv
+    node_flags = n.flags.conv
 
     is_separate_tiling = False
     if not find_initializer(onnx_model, n.input[0]):
@@ -429,7 +408,7 @@ def determine_gemm_tile_sizes(n):
     A_rows = 1  # Not using A_shape.dim[0] here, as it's a symbol "N"
     A_cols = A_shape.dim[1].dim_value
     B_rows = B.dims[0]
-    node_flags = n.flags.b.extra.gemm
+    node_flags = n.flags.gemm
 
     # writing a batch at a time is simpler and faster
     tile_size_unit = config['op_filters']
@@ -569,7 +548,7 @@ for node in graph:
         output_nodes.write(to_bytes(0))
     output_nodes.write(to_bytes(node.max_output_id))
     output_nodes.write(to_bytes(ops.index(node.op_type)))
-    assert ctypes.sizeof(node.flags.as_bytes) == ctypes.sizeof(node.flags.b), f'Node flags require {ctypes.sizeof(node.flags.b)} bytes'
+    assert ctypes.sizeof(node.flags.as_bytes) == ctypes.sizeof(node.flags), f'Node flags require {ctypes.sizeof(node.flags)} bytes'
     for idx in range(ctypes.sizeof(node.flags.as_bytes)):
         output_nodes.write(to_bytes(node.flags.as_bytes[idx], size=8))
     if Constants.HAWAII:

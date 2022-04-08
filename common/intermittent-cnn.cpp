@@ -184,7 +184,7 @@ uint32_t job_index_to_offset(const ParameterInfo *output, uint16_t job_index) {
 
     /* BEGIN constants */
     uint16_t input_tile_len, input_tile_jobs, jobs_in_a_filter_tile, jobs_in_an_op, output_tile_c, OUTPUT_CHANNEL;
-    output_tile_c = node->flags.extra.conv.output_tile_c;
+    output_tile_c = node->flags.conv.output_tile_c;
     OUTPUT_CHANNEL = output->dims[1];
 
 #if !INDIRECT_RECOVERY
