@@ -54,19 +54,18 @@ Here are basic software and hardware requirements to build Stateful and the ligh
 * Several deep learning Python libraries defined in `requirements.txt`. Those libraries can be installed with `pip3 install -r requirements.txt`.
 * [Code composer studio](https://www.ti.com/tool/CCSTUDIO) >= 11.0
 * [MSP-EXP430FR5994 LaunchPad](https://www.ti.com/tool/MSP-EXP430FR5994) or [MSP-EXP432P401R LaunchPad](https://www.ti.com/tool/MSP-EXP432P401R)
-* For MSP432, [ARM CMSIS Library](https://github.com/ARM-software/CMSIS_5/) 5.7.0 and [MSP432 driverlib](https://www.ti.com/tool/MSPDRIVERLIB) 3.21.00.05
-* For MSP430, [MSP DSP Library](https://www.ti.com/tool/MSP-DSPLIB) 1.30.00.02 and [MSP430 driverlib](https://www.ti.com/tool/MSPDRIVERLIB) 2.91.13.01
+* For MSP432, [MSP432 driverlib](https://www.ti.com/tool/MSPDRIVERLIB) 3.21.00.05
+* For MSP430, [MSP430 driverlib](https://www.ti.com/tool/MSPDRIVERLIB) 2.91.13.01
 
 ### Setup and Build
 
 #### Common steps for all platforms
 
-1. Prepare vendor-supplied libraries for hardware-accelerated computation. After downloading and extracting both libraries to `ARM-CMSIS/` and `TI-DSPLib/`, respectively, apply the patches with the following commands:
-    ```
-    cd ./ARM-CMSIS && patch -Np1 -i ../vendor-patches/ARM-CMSIS.diff
-    cd ./TI-DSPLib && patch -Np1 -i ../vendor-patches/TI-DSPLib.diff
-    ```
-1. Convert the provided pre-trained models with the command `./dnn-models/transform.py --target (msp430|msp432) (--ideal|--hawaii|--japari|--stateful) (cifar10|har|kws)` to specify the target platform, the intermittent inference approach and the model to deploy.
+1. Prepare vendor-supplied libraries for hardware-accelerated computation. `git submodule update --init --recursive` will download them all.
+1. Convert the provided pre-trained models with the command `./dnn-models/transform.py --target (msp430|msp432) (--ideal|--hawaii|--japari|--stateful) (cifar10|har|kws|tomato)` to specify:
+    * The target platform from one of `msp430` or `msp432`
+    * The intermittent inference approach from one of `--ideal`, `--hawaii`, `--japari` or `--stateful`
+    * The model to deploy from one of `cifar10`, `har`, `kws` or `tomato`.
 
 #### Building for MSP430FR5994
 
