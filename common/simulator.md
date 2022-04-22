@@ -22,7 +22,7 @@ Additional program options are available:
 
 * `-r`: Turns the simulated NVM (`nvm.bin`) into read-only memory (discards any changes). This is useful if you are debugging some issue and want to keep NVM in a specific state.
 * `-f`: Dump floating point numbers instead integers during debugging.
-* `-c`: Force shutdown after writing N bytes to NVM. See 
+* `-c`: Force shutdown after writing N bytes to NVM. This option is used by the `--shutdown-after-writes` of the `run-intermittently.py` script.
 * `-s`: Save output features maps to a file instead of printing them out; requires building the simulator with `-D USE_PROTOBUF=ON` and `-D MY_DEBUG=2` or higher.
 
 ## Checking inference accuracy
