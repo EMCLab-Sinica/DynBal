@@ -66,14 +66,11 @@ def load_data_cifar10(start: int, limit: int) -> ModelData:
     H = 32
     W = 32
     for im_data in test_data[b'data'][start:start+limit]:
-        # ONNX models transformed from Keras ones uses NHWC as input
         im = np.array(im_data)
         im = np.reshape(im, (3, H, W))
         im = im / 256
-        im = np.moveaxis(im, 0, -1)
         images.append(im)
-    # XXX: the actual data layout is NCHW, while the first node is Transpose - take the resultant
-    return ModelData(labels=labels, images=np.array(images, dtype=np.float32), data_layout=DataLayout.NHWC)
+    return ModelData(labels=labels, images=np.array(images, dtype=np.float32), data_layout=DataLayout.NCHW)
 
 GOOGLE_SPEECH_URL = 'https://storage.googleapis.com/download.tensorflow.org/data/speech_commands_test_set_v0.02.tar.gz'
 GOOGLE_SPEECH_SAMPLE_RATE = 16000
