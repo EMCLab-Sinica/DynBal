@@ -62,7 +62,7 @@ Here are basic software and hardware requirements to build Stateful and the ligh
 #### Common steps for all platforms
 
 1. Prepare vendor-supplied libraries for hardware-accelerated computation. `git submodule update --init --recursive` will download them all.
-1. Convert the provided pre-trained models with the command `./dnn-models/transform.py --target (msp430|msp432) (--ideal|--hawaii|--japari|--stateful) (cifar10|har|kws|tomato)` to specify:
+1. Convert the provided pre-trained models with the command `python3 dnn-models/transform.py --target (msp430|msp432) (--ideal|--hawaii|--japari|--stateful) (cifar10|har|kws|tomato)` to specify:
     * The target platform from one of `msp430` or `msp432`
     * The intermittent inference approach from one of `--ideal`, `--hawaii`, `--japari` or `--stateful`
     * The model to deploy from one of `cifar10`, `har`, `kws` or `tomato`.
