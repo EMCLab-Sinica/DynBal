@@ -282,8 +282,8 @@ void handle_concat(Model *model, const ParameterInfo *input[], ParameterInfo *ou
 
 #endif
 
+    uint16_t already_copied = output_offset - hw * output->dims[1];
     for (; hw < output->dims[2] * output->dims[3]; hw++) {
-        uint16_t already_copied = output_offset - hw * output->dims[1];
         for (uint8_t input_idx = 0; input_idx < node->inputs_len; input_idx++) {
             const ParameterInfo* inp = input[input_idx];
             const int16_t input_channels = inp->dims[1];
@@ -292,6 +292,7 @@ void handle_concat(Model *model, const ParameterInfo *input[], ParameterInfo *ou
                 continue;
             }
             uint16_t to_copy = input_channels - already_copied;
+            already_copied = 0;
 #if INDIRECT_RECOVERY
             start_cpu_counter(offsetof(Counters, state_query));
             check_next_turning_point(offset, output_turning_point_idx, next_output_turning_point, output_slot_info, output_offset);
@@ -310,13 +311,15 @@ void handle_concat(Model *model, const ParameterInfo *input[], ParameterInfo *ou
                 my_scale_q15(lea_buffer, scaleFract, shift, lea_buffer, to_copy * sizeof(int16_t));
             }
 
+#if INDIRECT_RECOVERY
             start_cpu_counter(offsetof(Counters, embedding));
             update_states(lea_buffer, to_copy, output_offset, offset, next_output_turning_point, true);
             stop_cpu_counter();
+#endif
 
             my_memcpy_to_param(output, output_offset, lea_buffer, to_copy * sizeof(int16_t), 0);
+            my_printf_debug("Copied %u values to [%d, %d)" NEWLINE, to_copy, output_offset, output_offset + to_copy);
             output_offset += to_copy;
-            my_printf_debug("Copied %u values" NEWLINE, to_copy);
 #if HAWAII
             write_hawaii_layer_footprint(model->layer_idx, to_copy);
 #endif
