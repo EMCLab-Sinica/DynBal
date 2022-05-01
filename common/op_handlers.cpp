@@ -261,7 +261,7 @@ void alloc_concat(Model* model, const ParameterInfo *input[], ParameterInfo* out
 void handle_concat(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node) {
     my_printf_debug("Concat!" NEWLINE);
 
-    uint32_t output_offset;
+    uint32_t output_offset = 0;
     uint16_t hw = 0;
 #if INTERMITTENT
     start_cpu_counter(offsetof(Counters, progress_seeking));
