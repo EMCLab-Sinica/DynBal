@@ -10,7 +10,7 @@
 
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
-#pragma GCC diagnostic warning "-Wpadded"
+#pragma GCC diagnostic error "-Wpadded"
 #endif
 
 struct ConvNodeFlags {
@@ -40,12 +40,17 @@ struct SqueezeNodeFlags {
     uint8_t axes;
 };
 
+struct ConcatNodeFlags {
+    int8_t axis;
+};
+
 union NodeFlags {
     ConvNodeFlags conv;
     MaxPoolFlags maxpool;
     GemmNodeFlags gemm;
     GemmMergeNodeFlags gemmmerge;
     SqueezeNodeFlags squeeze;
+    ConcatNodeFlags concat;
 };
 
 static_assert(sizeof(NodeFlags) == 12, "Unexpected size for NodeFlags");
@@ -62,6 +67,7 @@ typedef struct Node {
     struct Footprint {
         uint16_t value;
         uint8_t version;
+        uint8_t dummy;
     } footprint[2];
 #endif
 } Node;

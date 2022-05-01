@@ -232,25 +232,104 @@ void handle_unsqueeze(Model* model, const ParameterInfo* input[], ParameterInfo*
     }
 }
 
-void alloc_concat(Model *, const ParameterInfo *[], ParameterInfo*, const Node*) {
+void alloc_concat(Model* model, const ParameterInfo *input[], ParameterInfo* output, const Node* node) {
+    // Only channel concatenation is supported for now
+    MY_ASSERT(node->flags.concat.axis == 1);
+
+    output->dims[1] = 0;
+    for (uint8_t input_idx = 0; input_idx < node->inputs_len; input_idx++) {
+        const ParameterInfo* inp = input[input_idx];
+        MY_ASSERT(inp->dims[1] <= LEA_BUFFER_SIZE);
+#if JAPARI
+        // Only support simple cases for now
+        MY_ASSERT(inp->dims[1] % (BATCH_SIZE + 1) == 0);
+#elif STATEFUL
+        MY_ASSERT(inp->dims[1] % BATCH_SIZE == 0);
+#endif
+        output->dims[1] += inp->dims[1];
+        output->scale = (inp->scale > output->scale) ? inp->scale : output->scale;
+    }
+
+    output->params_len = sizeof(int16_t);
+    for (uint8_t dim_idx = 0; (dim_idx < 4) && output->dims[dim_idx]; dim_idx++) {
+        output->params_len *= output->dims[dim_idx];
+    }
+
+    output->slot = get_next_slot(model, input[0]);
 }
 
-void handle_concat(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node*) {
+void handle_concat(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node) {
     my_printf_debug("Concat!" NEWLINE);
 
-    const ParameterInfo *A = input[0], *B = input[1];
-    // XXX: assume concatenating 2 tensors at the CHANNEL dimension and they
-    // have the same number of channels.
-    MY_ASSERT(A->dims[1] == B->dims[1]);
-    output->dims[1] *= 2;
-    output->param_flags |= SEPARATE_TILING;
+    uint32_t output_offset;
+    uint16_t hw = 0;
+#if INTERMITTENT
+    start_cpu_counter(offsetof(Counters, progress_seeking));
+    uint32_t first_unfinished_job_idx = run_recovery(model, output);
+    output_offset = batch_start(job_index_to_offset(output, first_unfinished_job_idx));
+    hw = output_offset / output->dims[1];
 
-    MY_ASSERT(A->scale.toFloat() == B->scale.toFloat());
-    output->scale = A->scale;
-    output->slot = A->slot;
+#if INDIRECT_RECOVERY
+    start_cpu_counter(offsetof(Counters, state_query));
+    uint16_t next_output_turning_point;
+    int16_t offset;
+    uint8_t output_turning_point_idx;
+    SlotInfo *output_slot_info;
+    find_initial_state_bit(&offset, &output_turning_point_idx, &next_output_turning_point, &output_slot_info,
+                           output_offset, model, output);
+    stop_cpu_counter();
+#endif
 
-    dump_params_nhwc_debug(model, A);
-    dump_params_nhwc_debug(model, B);
+#endif
+
+    for (; hw < output->dims[2] * output->dims[3]; hw++) {
+        uint16_t already_copied = output_offset - hw * output->dims[1];
+        for (uint8_t input_idx = 0; input_idx < node->inputs_len; input_idx++) {
+            const ParameterInfo* inp = input[input_idx];
+            const int16_t input_channels = inp->dims[1];
+            if (already_copied >= input_channels) {
+                already_copied -= input_channels;
+                continue;
+            }
+            uint16_t to_copy = input_channels - already_copied;
+#if INDIRECT_RECOVERY
+            start_cpu_counter(offsetof(Counters, state_query));
+            check_next_turning_point(offset, output_turning_point_idx, next_output_turning_point, output_slot_info, output_offset);
+            stop_cpu_counter();
+#endif
+            my_memcpy_from_param(model, lea_buffer, inp, hw * input_channels + already_copied, to_copy * sizeof(int16_t));
+#if STATEFUL
+            for (uint16_t idx = BATCH_SIZE - 1; idx < to_copy; idx += BATCH_SIZE) {
+                strip_state(lea_buffer + idx);
+            }
+#endif
+            if (inp->scale != output->scale) {
+                int16_t scaleFract;
+                uint8_t shift;
+                float_to_scale_params(&scaleFract, &shift, output->scale/inp->scale);
+                my_scale_q15(lea_buffer, scaleFract, shift, lea_buffer, to_copy * sizeof(int16_t));
+            }
+
+            start_cpu_counter(offsetof(Counters, embedding));
+            update_states(lea_buffer, to_copy, output_offset, offset, next_output_turning_point, true);
+            stop_cpu_counter();
+
+            my_memcpy_to_param(output, output_offset, lea_buffer, to_copy * sizeof(int16_t), 0);
+            output_offset += to_copy;
+            my_printf_debug("Copied %u values" NEWLINE, to_copy);
+#if HAWAII
+            write_hawaii_layer_footprint(model->layer_idx, to_copy);
+#endif
+        }
+    }
+
+    dump_params_nhwc_debug(model, output);
+
+#if INDIRECT_RECOVERY
+    start_cpu_counter(offsetof(Counters, table_updates));
+    flip_state_bit(model, output);
+    stop_cpu_counter();
+#endif
 }
 
 void handle_softmax(Model*, const ParameterInfo*[], ParameterInfo*, const Node*) {

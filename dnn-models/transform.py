@@ -66,7 +66,6 @@ inplace_update_ops = ['Reshape', 'Softmax', 'Squeeze', 'Transpose', 'Unsqueeze']
 other_flags = [
     # parameter flags
     'CHANNEL_FIRST',
-    'SEPARATE_TILING',  # Tiles in different channels are actually in different slots
 ]
 
 def op_flag(flag):
@@ -124,6 +123,11 @@ class SqueezeNodeFlags(ctypes.Structure):
         ("axes", ctypes.c_uint8, 8),  # a bitmap for axes to squeeze/unsqueeze
     ]
 
+class ConcatNodeFlags(ctypes.Structure):
+    _fields_ = [
+        ("axis", ctypes.c_int8, 8),
+    ]
+
 class NodeFlags(ctypes.Union):
     _fields_ = [
         ("conv", ConvNodeFlags),
@@ -131,6 +135,7 @@ class NodeFlags(ctypes.Union):
         ("gemm", GemmNodeFlags),
         ("gemmmerge", GemmMergeNodeFlags),
         ("squeeze", SqueezeNodeFlags),
+        ("concat", ConcatNodeFlags),
         ("as_bytes", ctypes.c_uint8 * 12),
     ]
 
@@ -318,6 +323,8 @@ for idx, n in enumerate(nodes):
             node_flags.axes |= (1 << axis)
     if n.op_type == 'GemmMerge':
         n.flags.gemmmerge.tile_length = config['gemm_tile_length']
+    if n.op_type == 'Concat':
+        n.flags.concat.axis = get_attr(n, 'axis')
     for output_ in output:
         names[output_] = idx + Constants.N_INPUT
 
@@ -342,12 +349,6 @@ def determine_conv_tile_c(n):
     filter_info = find_initializer(onnx_model, n.input[1])
     node_flags = n.flags.conv
 
-    is_separate_tiling = False
-    if not find_initializer(onnx_model, n.input[0]):
-        input_node = find_node_by_output(onnx_model.graph.node, n.input[0])
-        if input_node and input_node.op_type == 'Concat':
-            is_separate_tiling = True
-
     shape = output_value_info.type.tensor_type.shape
     OUTPUT_CHANNEL = shape.dim[1].dim_value
     OUTPUT_H = shape.dim[2].dim_value
@@ -357,8 +358,6 @@ def determine_conv_tile_c(n):
     kW = filter_info.dims[3]
 
     max_continuous_channels = CHANNEL
-    if is_separate_tiling:
-        max_continuous_channels //= 2
     node_flags.input_tile_c = max_continuous_channels
 
     logger.debug('Initial input_tile_c=%d', node_flags.input_tile_c)
@@ -451,16 +450,6 @@ for idx, node in enumerate(graph):
             continue
         used_node = graph[inp - Constants.N_INPUT]
         used_node.max_output_id = max([idx, used_node.max_output_id])
-
-# Inputs of Concat should be kept until Concat is processed
-for idx, node in enumerate(graph):
-    if node.op_type != 'Concat':
-        continue
-    for inp in node.inputs:
-        if inp < Constants.N_INPUT:
-            continue
-        used_node = graph[inp - Constants.N_INPUT]
-        used_node.max_output_id = max([used_node.max_output_id, node.max_output_id])
 
 parameters = [None for _ in range(Constants.N_INPUT)]
 

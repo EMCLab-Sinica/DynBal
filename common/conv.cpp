@@ -32,7 +32,6 @@ static inline int16_t int16_max(int16_t a, int16_t b) {
 typedef struct ConvTaskParams {
     Model* model;
     const ParameterInfo *conv_input;
-    const ParameterInfo *real_conv_input; // for separate channel tiling
     const ParameterInfo *conv_filter;
     const ParameterInfo *conv_bias;
     ParameterInfo *output;
@@ -53,7 +52,7 @@ typedef struct ConvTaskParams {
     uint16_t input_tile_c_offset;
     uint16_t input_tile_c_index;
     uint16_t tile_h;
-    uint8_t cur_input_tile_c;
+    uint16_t cur_input_tile_c;
     uint16_t cur_filter_tile_c;
     uint16_t n_tiles_c;
     uint16_t dest_offset;
@@ -198,7 +197,7 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
             }
 #if STATEFUL
             start_cpu_counter(offsetof(Counters, embedding));
-            if (conv_params->real_conv_input->slot == SLOT_TEST_SET) {
+            if (conv_params->conv_input->slot == SLOT_TEST_SET) {
                 my_scale_q15(filter_tmp, 0x4000, 0, filter_tmp, conv_params->filter_offset);
             }
             bool has_state = offset_has_state(cur_output_data_offset + idx);
@@ -222,7 +221,7 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
                 }
 #if STATEFUL
                 start_cpu_counter(offsetof(Counters, embedding));
-                if (conv_params->real_conv_input->slot == SLOT_TEST_SET) {
+                if (conv_params->conv_input->slot == SLOT_TEST_SET) {
                     bias_val /= 2;
                 }
                 stop_cpu_counter();
@@ -349,6 +348,7 @@ static inline uint16_t load_input_vector(uint32_t src_addr, int16_t* dest_addr, 
 
 #if JAPARI
     if (conv_params->conv_input_has_footprints) {
+        MY_ASSERT(len <= INPUT_BUFFER_WITH_FOOTPRINTS_LEN);
         memcpy_dest_addr = input_buffer_with_footprints;
     } else
 #endif
@@ -358,7 +358,7 @@ static inline uint16_t load_input_vector(uint32_t src_addr, int16_t* dest_addr, 
     }
     my_memcpy_from_param(
         conv_params->model, memcpy_dest_addr,
-        conv_params->real_conv_input, src_addr,
+        conv_params->conv_input, src_addr,
         len * sizeof(int16_t));
 #if JAPARI
     start_cpu_counter(offsetof(Counters, stripping));
@@ -392,15 +392,6 @@ static void handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
     int8_t field_size = (conv_params->kH - 1) / 2;
 
     /* copy input data, row by row */
-
-    int8_t real_input_index = -1;
-    if (conv_params->conv_input->param_flags & SEPARATE_TILING) {
-        real_input_index = (2 * conv_params->input_tile_c_index >= conv_params->n_tiles_c) ? 1 : 0;
-        const Node* input_node = get_node(conv_params->conv_input);
-        conv_params->real_conv_input = get_parameter_info(input_node->inputs[real_input_index]);
-    } else {
-        conv_params->real_conv_input = conv_params->conv_input;
-    }
 
     /* int32_t instead of int16_t as TI's compiler cannot handle negative
      * offsets correctly. The expression `ptr + (int16_t)(-2)` is
@@ -447,9 +438,6 @@ static void handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
     my_printf_debug("Copying row to lea_buffer + %d" NEWLINE,
                     static_cast<int>(dest - lea_buffer));
     uint16_t cur_input_channel = conv_params->CHANNEL;
-    if (conv_params->conv_input->param_flags & SEPARATE_TILING) {
-        cur_input_channel /= 2;
-    }
 #if JAPARI
     start_cpu_counter(offsetof(Counters, embedding));
     if (conv_params->conv_input_has_footprints) {
@@ -464,11 +452,8 @@ static void handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
 #else
     input_src_offset += conv_params->input_tile_c_offset;
 #endif
-    if (real_input_index == 1) {
-        input_src_offset -= cur_input_channel;
-    }
 #if INDIRECT_RECOVERY
-    dump_turning_points_debug(model, conv_params->real_conv_input);
+    dump_turning_points_debug(model, conv_params->conv_input);
 #endif
     for (int32_t h = h_start; h <= h_end; h++) {
         int16_t *dest_addr = dest + (w_start-conv_params->input_w) * im2col_channel_offset;
@@ -489,7 +474,7 @@ static void handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
 
 #if STATEFUL
         start_cpu_counter(offsetof(Counters, stripping));
-        if (conv_params->real_conv_input->slot != SLOT_TEST_SET) {
+        if (conv_params->conv_input->slot != SLOT_TEST_SET) {
             // stripping states inside the h loop is faster as biases multipliers can be skipped
             int16_t *input_row_end = orig_dest_addr + input_row_len;
             // if input_tile_c is smaller than BATCH_SIZE, state bits are not always at offset BATCH_SIZE - 1
@@ -513,12 +498,6 @@ static void handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
         dest += conv_params->dest_offset;
         input_src_offset += conv_params->W * cur_input_channel;
     }
-    if (conv_params->real_conv_input->scale != conv_params->conv_input->scale) {
-        int16_t scaleFract;
-        uint8_t shift;
-        float_to_scale_params(&scaleFract, &shift, conv_params->real_conv_input->scale / conv_params->conv_input->scale);
-        my_scale_q15(lea_buffer, scaleFract, shift, lea_buffer, inputs_len);
-    }
     uint16_t bias_multipler_offset = conv_params->dest_offset - 1;
     while (bias_multipler_offset < inputs_len) {
         lea_buffer[bias_multipler_offset] = -0x8000; // _Q15(-1.0)
@@ -527,7 +506,7 @@ static void handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
 
     my_printf_debug("Loaded inputs" NEWLINE);
     // state = 0 as state bits are already removed by my_offset_q15 above
-    dump_matrix_debug(lea_buffer, inputs_len, ValueInfo(conv_params->real_conv_input, nullptr), false);
+    dump_matrix_debug(lea_buffer, inputs_len, ValueInfo(conv_params->conv_input, nullptr), false);
 
     int16_t max_input_h = MIN_VAL(conv_params->input_h+conv_params->tile_h-1, conv_params->input_h_last);
     for (int16_t cur_input_h = conv_params->input_h; cur_input_h <= max_input_h; cur_input_h += conv_params->strides[0]) {
@@ -603,7 +582,6 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
     output->dims[1] = OUTPUT_CHANNEL;
     output->dims[2] = conv_params->OUTPUT_H;
     output->dims[3] = conv_params->OUTPUT_W;
-    output->param_flags &= ~SEPARATE_TILING;
     output->scale = conv_input->scale * conv_filter->scale;
 #if STATEFUL
     start_cpu_counter(offsetof(Counters, embedding));
