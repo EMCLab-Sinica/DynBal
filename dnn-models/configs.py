@@ -16,8 +16,6 @@ configs = {
         'n_all_samples': 10000,
         'sample_size': [3, 32, 32],
         'op_filters': 2,
-        'first_sample_outputs': [ 4.895500, 4.331344, 4.631835, 11.602396, 4.454658, 10.819544, 5.423588, 6.451203, 5.806091, 5.272837 ],
-        'fp32_accuracy': 0.7704,
     },
     'kws': {
         'onnx_model': 'dnn-models/KWS-DNN_S.onnx',
@@ -29,8 +27,6 @@ configs = {
         'n_all_samples': 4890,
         'sample_size': [25, 10],  # MFCC gives 25x10 tensors
         'op_filters': 4,
-        'first_sample_outputs': [ -29.228327, 5.429047, 22.146973, 3.142066, -10.448060, -9.513299, 15.832925, -4.655487, -14.588447, -1.577156, -5.864228, -6.609077 ],
-        'fp32_accuracy': 0.7983,
     },
     'har': {
         'onnx_model': 'dnn-models/HAR-CNN.onnx',
@@ -42,8 +38,6 @@ configs = {
         'n_all_samples': 2947,
         'sample_size': [9, 128],
         'op_filters': 4,
-        'first_sample_outputs': [ -6.194588, 2.2284777, -13.659239, -1.4972568, 13.473643, -10.446839 ],
-        'fp32_accuracy': 0.9121,
     },
 }
 

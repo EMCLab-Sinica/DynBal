@@ -50,10 +50,6 @@ def main():
     suffix = os.environ['LOG_SUFFIX']
     config = os.environ['CONFIG'].split(' ')
 
-    if suffix.endswith('baseline_b1_cmsis'):
-        model = suffix.split('_')[0]
-        check_call([sys.executable, TOPDIR / 'original_model_run.py', model, '--compare-configs'])
-
     build_and_test(config, suffix, intermittent=False)
 
     # Test intermittent running

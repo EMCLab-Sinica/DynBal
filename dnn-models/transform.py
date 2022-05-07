@@ -19,7 +19,20 @@ import onnx.helper
 import numpy as np
 
 from configs import configs
-from utils import extract_data, get_attr, find_kernel_shape, find_initializer, find_node_by_input, find_node_by_output, find_tensor_value_info, infer_auto_pad, load_model, get_model_ops, DataLayout
+from utils import (
+    DataLayout,
+    extract_data,
+    get_attr,
+    find_kernel_shape,
+    find_initializer,
+    find_node_by_input,
+    find_node_by_output,
+    find_tensor_value_info,
+    get_model_ops,
+    infer_auto_pad,
+    load_model,
+    run_model,
+)
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -181,11 +194,14 @@ config['total_sample_size'] = np.prod(config['sample_size'])
 if 'gemm_tile_length' not in config:
     config['gemm_tile_length'] = 0
 Constants.CONFIG = args.config
-Constants.FIRST_SAMPLE_OUTPUTS = config['first_sample_outputs']
 if args.all_samples:
     Constants.N_SAMPLES = config['n_all_samples']
     Constants.NVM_SIZE += config['n_all_samples'] * 2*config['total_sample_size']  # multiply by 2 for Q15
 model_data = config['data_loader'](start=0, limit=Constants.N_SAMPLES)
+
+orig_model = load_model(config, for_deployment=False)
+Constants.FIRST_SAMPLE_OUTPUTS = list(run_model(orig_model, model_data, limit=1, verbose=False)[0])
+Constants.FP32_ACCURACY = run_model(orig_model, model_data, limit=None, verbose=False)
 
 Constants.BATCH_SIZE = args.batch_size
 if args.stateful:
