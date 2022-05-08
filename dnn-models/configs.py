@@ -7,7 +7,7 @@ from utils import (
 # intermediate_values_size should < 65536, or TI's compiler gets confused
 configs = {
     'cifar10': {
-        'onnx_model': 'dnn-models/squeezenet_cifar10.onnx',
+        'onnx_model': 'squeezenet_cifar10',
         'scale': 2,
         'input_scale': 4,
         'num_slots': 3,
@@ -18,7 +18,7 @@ configs = {
         'op_filters': 2,
     },
     'kws': {
-        'onnx_model': 'dnn-models/KWS-DNN_S.onnx',
+        'onnx_model': 'KWS-DNN_S',
         'scale': 1,
         'input_scale': 120,
         'num_slots': 2,
@@ -29,7 +29,7 @@ configs = {
         'op_filters': 4,
     },
     'har': {
-        'onnx_model': 'dnn-models/HAR-CNN.onnx',
+        'onnx_model': 'HAR-CNN',
         'scale': 2,
         'input_scale': 16,
         'num_slots': 2,

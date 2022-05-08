@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 OPS_WITH_MERGE = ['Conv', 'Gemm']
 
-TOPDIR = pathlib.Path(__file__).absolute().parents[1]
+THIS_DIR = pathlib.Path(__file__).absolute().parent
 
 audio_ops = ['DecodeWav', 'AudioSpectrogram', 'Mfcc']
 
@@ -124,7 +124,7 @@ def kws_dnn_model():
 def load_har(start: int, limit: int):
     try:
         orig_sys_path = sys.path.copy()
-        sys.path.append(str(TOPDIR / 'dnn-models' / 'deep-learning-HAR' / 'utils'))
+        sys.path.append(str(THIS_DIR / 'deep-learning-HAR' / 'utils'))
         from utilities import read_data, standardize
 
         archive_dir = download_file('https://archive.ics.uci.edu/ml/machine-learning-databases/00240/UCI%20HAR%20Dataset.zip',
@@ -270,9 +270,12 @@ def get_model_ops(onnx_model):
 
     return ops
 
-def load_model(config, for_deployment):
+def load_model(config, model_variant, for_deployment):
+    model_name = config['onnx_model']
+    if model_variant:
+        model_name += f'-{model_variant}'
     # https://github.com/onnx/onnx/blob/master/docs/PythonAPIOverview.md
-    onnx_model = onnx.load_model(TOPDIR / config['onnx_model'])
+    onnx_model = onnx.load_model(THIS_DIR / f'{model_name}.onnx')
 
     # onnxoptimizer requires known dimensions, so set the batch size=1.
     # The batch size will be changed to a variable after dynamic_shape_inference, anyway.

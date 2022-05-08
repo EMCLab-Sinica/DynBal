@@ -118,6 +118,7 @@ static void handle_node(Model *model, uint16_t node_idx) {
 #if MY_DEBUG >= MY_DEBUG_LAYERS
     my_printf("Current node: %d, ", node_idx);
     my_printf("name = %.*s, ", NODE_NAME_LEN, cur_node->name);
+    my_printf("output_name = %s, ", cur_node->output_name);
     my_printf("op_type = %d" NEWLINE, cur_node->op_type);
 #endif
 

@@ -12,6 +12,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('config', choices=configs.keys())
     parser.add_argument('--limit', type=int, default=0)
+    parser.add_argument('--model-variant', type=str, default='')
     parser.add_argument('--save-file')
     args = parser.parse_args()
 
@@ -19,7 +20,7 @@ def main():
         args.limit = None
 
     config = configs[args.config]
-    model = load_model(config, for_deployment=False)
+    model = load_model(config, model_variant=args.model_variant, for_deployment=False)
     model_data = config['data_loader'](start=0, limit=args.limit)
     run_model(model, model_data, args.limit,
               verbose=not args.save_file, save_file=args.save_file)

@@ -179,6 +179,7 @@ parser.add_argument('--batch-size', type=int, default=1)
 parser.add_argument('--target', choices=('msp430', 'msp432'), required=True)
 parser.add_argument('--debug', action='store_true')
 parser.add_argument('--data-output-dir', metavar='DIR', default='build')
+parser.add_argument('--model-variant', type=str, default='')
 intermittent_methodology = parser.add_mutually_exclusive_group(required=True)
 intermittent_methodology.add_argument('--ideal', action='store_true')
 intermittent_methodology.add_argument('--hawaii', action='store_true')
@@ -199,7 +200,7 @@ if args.all_samples:
     Constants.NVM_SIZE += config['n_all_samples'] * 2*config['total_sample_size']  # multiply by 2 for Q15
 model_data = config['data_loader'](start=0, limit=Constants.N_SAMPLES)
 
-orig_model = load_model(config, for_deployment=False)
+orig_model = load_model(config, model_variant=args.model_variant, for_deployment=False)
 Constants.FIRST_SAMPLE_OUTPUTS = list(run_model(orig_model, model_data, limit=1, verbose=False)[0])
 Constants.FP32_ACCURACY = run_model(orig_model, model_data, limit=None, verbose=False)
 
@@ -220,7 +221,7 @@ if args.target == 'msp432':
     Constants.USE_ARM_CMSIS = 1
 Constants.LEA_BUFFER_SIZE = lea_buffer_size[args.target]
 
-onnx_model = load_model(config, for_deployment=True)
+onnx_model = load_model(config, model_variant=args.model_variant, for_deployment=True)
 
 names = {}
 
@@ -576,7 +577,16 @@ def get_float_data(param):
 
 param_limits = {}
 def get_param_limit(model, node):
-    return config['scale']
+    key = node.output[0]
+    if key in param_limits:
+        return param_limits[key]
+
+    param_scale = 1
+    for input_idx, input_ in enumerate(node.input[1:]):  # weights & possibly biases
+        param_limit = np.max(np.abs(get_float_data(find_initializer(model, input_))))
+        param_scale = max(param_scale, param_limit)
+    param_limits[key] = param_scale
+    return param_scale
 
 def write_scale(dest, scale):
     shift = 0
