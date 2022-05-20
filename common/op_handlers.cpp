@@ -308,7 +308,7 @@ void handle_concat(Model *model, const ParameterInfo *input[], ParameterInfo *ou
             if (inp->scale != output->scale) {
                 int16_t scaleFract;
                 uint8_t shift;
-                float_to_scale_params(&scaleFract, &shift, output->scale/inp->scale);
+                float_to_scale_params(&scaleFract, &shift, inp->scale/output->scale);
                 my_scale_q15(lea_buffer, scaleFract, shift, lea_buffer, to_copy * sizeof(int16_t));
             }
 
@@ -327,7 +327,7 @@ void handle_concat(Model *model, const ParameterInfo *input[], ParameterInfo *ou
         }
     }
 
-    dump_params_nhwc_debug(model, output);
+    dump_params_nhwc_debug(model, output, node->output_name);
 
 #if INDIRECT_RECOVERY
     start_cpu_counter(offsetof(Counters, table_updates));
