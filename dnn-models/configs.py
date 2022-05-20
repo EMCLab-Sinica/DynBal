@@ -9,7 +9,7 @@ configs = {
     'cifar10': {
         'onnx_model': 'squeezenet_cifar10',
         'scale': 2,
-        'input_scale': 4,
+        'input_scale': 10,
         'num_slots': 3,
         'intermediate_values_size': 65000,
         'data_loader': load_data_cifar10,
