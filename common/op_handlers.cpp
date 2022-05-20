@@ -279,6 +279,7 @@ void handle_concat(Model *model, const ParameterInfo *input[], ParameterInfo *ou
                            output_offset, model, output);
     stop_cpu_counter();
 #endif
+    stop_cpu_counter();
 
 #endif
 

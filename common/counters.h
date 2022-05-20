@@ -105,6 +105,7 @@ static inline void stop_cpu_counter(void) {
 
 void print_all_counters();
 void reset_counters();
+bool counters_cleared();
 void report_progress();
 
 #else

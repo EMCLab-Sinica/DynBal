@@ -145,6 +145,9 @@ static void handle_node(Model *model, uint16_t node_idx) {
     my_printf_debug("Old output state bit=%d" NEWLINE, get_state_bit(model, output->slot));
 #endif
     handlers[cur_node->op_type](model, input, output, cur_node);
+#if ENABLE_COUNTERS
+    MY_ASSERT(counters_cleared());
+#endif
     // For some operations (e.g., ConvMerge), scale is determined in the handlers
     my_printf_debug("Output scale = %f" NEWLINE, output->scale.toFloat());
 #if STATEFUL

@@ -83,6 +83,10 @@ void reset_counters() {
 #endif
 }
 
+bool counters_cleared() {
+    return (current_counter == INVALID_POINTER) && (prev_counter == INVALID_POINTER);
+}
+
 void report_progress() {
 #if ENABLE_DEMO_COUNTERS
     static uint8_t last_progress = 0;
