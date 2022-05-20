@@ -114,7 +114,7 @@ void handle_relu(Model *model, const ParameterInfo *input[], ParameterInfo *outp
         my_printf_debug(NEWLINE);
 #endif
 
-        my_memcpy_to_param(output, output_offset, vals, cur_tile_size*sizeof(int16_t), 0);
+        my_memcpy_to_param(output, output_offset, vals, cur_tile_size*sizeof(int16_t), 0, false);
         output_offset += cur_tile_size;
 #if HAWAII
         for (int8_t to_record = cur_tile_size; to_record > 0; to_record -= BATCH_SIZE) {
@@ -317,7 +317,7 @@ void handle_concat(Model *model, const ParameterInfo *input[], ParameterInfo *ou
             stop_cpu_counter();
 #endif
 
-            my_memcpy_to_param(output, output_offset, lea_buffer, to_copy * sizeof(int16_t), 0);
+            my_memcpy_to_param(output, output_offset, lea_buffer, to_copy * sizeof(int16_t), 0, true); // XXX: is Concat linear layer?
             my_printf_debug("Copied %u values to [%d, %d)" NEWLINE, to_copy, output_offset, output_offset + to_copy);
             output_offset += to_copy;
 #if HAWAII
@@ -434,7 +434,7 @@ void handle_add(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
         dump_matrix_debug(buffer_a, cur_buffer_size, ValueInfo(output), true);
 #endif
 
-        my_memcpy_to_param(output, data_offset, buffer_a, cur_buffer_size * sizeof(int16_t), 0);
+        my_memcpy_to_param(output, data_offset, buffer_a, cur_buffer_size * sizeof(int16_t), 0, true);
         data_offset += cur_buffer_size;
 #if HAWAII
         write_hawaii_layer_footprint(model->layer_idx, cur_buffer_size/BATCH_SIZE*BATCH_SIZE);

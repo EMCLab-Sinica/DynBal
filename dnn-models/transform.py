@@ -598,6 +598,7 @@ def write_scale(dest, scale):
     dest.write(to_bytes(0, size=8))         # scale.dummy
 
 model_parameters_info = outputs['model_parameters_info']
+total_params = 0
 for params in parameters:
     if params is None:  # input
         # Actual data for test samples are added last
@@ -661,10 +662,13 @@ for params in parameters:
         for _ in range(4 - len(params.dims)):
             model_parameters_info.write(to_bytes(0))
         write_scale(model_parameters_info, param_scale)
+        total_params += data_len
 
     # common to input and non-inputs
     model_parameters_info.write(to_bytes(parameter_info_idx))        # parameter_info_idx
     parameter_info_idx += 1
+
+logger.info('Total params: %d', total_params)
 
 # Placeholder for ParameterInfo of intermediate values
 intermediate_parameters_info = outputs['intermediate_parameters_info']

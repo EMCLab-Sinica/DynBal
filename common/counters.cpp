@@ -60,10 +60,14 @@ void print_all_counters() {
     my_printf(NEWLINE "Progress seeking:        "); total_overhead += print_counters<&Counters::progress_seeking>();
     // misc
     my_printf(NEWLINE "Memory layout:           "); total_overhead += print_counters<&Counters::memory_layout>();
-    my_printf(NEWLINE "Job preservation:        "); total_overhead += print_counters<&Counters::job_preservation>();
+    my_printf(NEWLINE "Linear job preservation: "); total_overhead += print_counters<&Counters::linear_job_preservation>();
+    my_printf(NEWLINE "Non-linear job preservation: "); total_overhead += print_counters<&Counters::non_linear_job_preservation>();
 #if JAPARI
     my_printf(NEWLINE "Footprint preservation:  "); total_overhead += print_counters<&Counters::footprint_preservation>();
     my_printf(NEWLINE "Data loading:            "); total_overhead += print_counters<&Counters::data_loading>();
+#endif
+#if STATEFUL
+    my_printf(NEWLINE "Embedded values:         "); total_overhead += print_counters<&Counters::embedded_values>();
 #endif
 
     my_printf(NEWLINE "Total DMA bytes: %d", total_dma_bytes);

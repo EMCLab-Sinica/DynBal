@@ -44,8 +44,12 @@ struct Counters {
     uint32_t data_loading;
 
     // field offset = 56
-    uint32_t job_preservation;
+    uint32_t linear_job_preservation;
+    uint32_t non_linear_job_preservation;
     uint32_t footprint_preservation;
+
+    // field offset = 68
+    uint32_t embedded_values;
 };
 
 extern uint8_t counters_cur_copy_id;

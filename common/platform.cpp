@@ -47,19 +47,25 @@ const char* datatype_name<Model>(void) {
     return "model";
 }
 
-void my_memcpy_to_param(ParameterInfo *param, uint16_t offset_in_word, const void *src, size_t n, uint16_t timer_delay) {
+void my_memcpy_to_param(ParameterInfo *param, uint16_t offset_in_word, const void *src, size_t n, uint16_t timer_delay, bool is_linear) {
     MY_ASSERT(param->slot < NUM_SLOTS);
     uint32_t total_offset = param->params_offset + offset_in_word * sizeof(int16_t);
     MY_ASSERT(total_offset + n <= param->params_len);
     write_to_nvm(src, intermediate_values_offset(param->slot) + total_offset, n, timer_delay);
 #if ENABLE_COUNTERS
+    uint32_t n_jobs;
 #if JAPARI
     uint16_t n_footprints = n / (BATCH_SIZE + 1);
-    counters()->job_preservation += n - n_footprints;
+    n_jobs = n - n_footprints;
     counters()->footprint_preservation += n_footprints;
 #else
-    counters()->job_preservation += n;
+    n_jobs = n;
 #endif
+    if (is_linear) {
+        counters()->linear_job_preservation += n_jobs;
+    } else {
+        counters()->non_linear_job_preservation += n_jobs;
+    }
 #endif
 }
 

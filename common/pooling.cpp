@@ -259,7 +259,7 @@ void handle_maxpool(Model *model, const ParameterInfo *input[], ParameterInfo *o
                     }
                     my_printf_debug(NEWLINE);
 #endif
-                    my_memcpy_to_param(output, output_offset, lea_buffer, len * sizeof(int16_t), 0);
+                    my_memcpy_to_param(output, output_offset, lea_buffer, len * sizeof(int16_t), 0, false);
 #if HAWAII
                     hawaii_record_footprints(model, len);
 #endif
@@ -313,7 +313,7 @@ void handle_maxpool(Model *model, const ParameterInfo *input[], ParameterInfo *o
                             start_cpu_counter(offsetof(Counters, state_query));
                             check_next_turning_point(offset, output_turning_point_idx, next_output_turning_point, output_slot_info, output_offset);
                             stop_cpu_counter();
-                            put_q15_param(output, output_offset, (offset == 0x4000 ? 1 : -1));
+                            put_q15_param(output, output_offset, (offset == 0x4000 ? 1 : -1), false);
                             output_offset++;
                         }
                         stop_cpu_counter();
@@ -343,7 +343,7 @@ void handle_maxpool(Model *model, const ParameterInfo *input[], ParameterInfo *o
                         stop_cpu_counter();
 #endif
                         my_printf_debug("max=% 6d " NEWLINE, lea_buffer[0]);
-                        put_q15_param(output, output_offset, lea_buffer[0]);
+                        put_q15_param(output, output_offset, lea_buffer[0], false);
 #if HAWAII
                         if (offset_has_state(output_offset)) {
                             write_hawaii_layer_footprint(model->layer_idx, BATCH_SIZE);
@@ -454,7 +454,7 @@ void handle_globalaveragepool(Model *model, const ParameterInfo *input[], Parame
             stop_cpu_counter();
 #endif
         }
-        put_q15_param(output, output_channel, output_val);
+        put_q15_param(output, output_channel, output_val, false);
         output_channel++;
     }
 

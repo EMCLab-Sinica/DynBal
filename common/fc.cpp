@@ -312,7 +312,7 @@ void handle_gemmmerge(Model *model, const ParameterInfo *input[], ParameterInfo 
         my_printf_debug("buffer_gemm after adjusting states; merge_offset=%d" NEWLINE, merge_offset);
         dump_matrix_debug(buffer_gemm, cur_tile_size, ValueInfo(output, model));
 
-        my_memcpy_to_param(output, merge_offset, buffer_gemm, cur_tile_size * sizeof(int16_t), 0);
+        my_memcpy_to_param(output, merge_offset, buffer_gemm, cur_tile_size * sizeof(int16_t), 0, true);
 #if HAWAII
         hawaii_record_footprints(model, cur_tile_size);
 #endif
