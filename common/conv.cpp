@@ -99,7 +99,9 @@ static void flip_filter_state_bits(ConvTaskParams *conv_params, uint16_t n_filte
     } else {
         to_flip_state_bits -= n_filters;
     }
+#if ENABLE_COUNTERS
     counters()->embedded_values += len;
+#endif
     // need negating filter value here as it will be multiplied with _Q15(-1.0), or -32768
     int16_t offset = get_value_state_bit(-*(to_flip_state_bits + BATCH_SIZE - 1))*0x4000;
     my_printf_debug("Flipping %d state bits in filters; first_round=%d, offset=%d" NEWLINE, len, first_round, offset);
@@ -205,7 +207,9 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
             if (has_state) {
                 my_printf_debug("Adding state bit for newly loaded filter idx=%d" NEWLINE, idx);
                 filter_tmp[conv_params->filter_offset - 1] = -(idx < n_keep_state_bits ? -conv_params->old_output_offset : conv_params->old_output_offset);
+#if ENABLE_COUNTERS
                 counters()->embedded_values++;
+#endif
             }
             stop_cpu_counter();
             if (!has_state)
