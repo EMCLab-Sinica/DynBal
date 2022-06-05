@@ -21,7 +21,7 @@ def main():
 
     config = configs[args.config]
     model = load_model(config, model_variant=args.model_variant, for_deployment=False)
-    model_data = config['data_loader'](start=0, limit=args.limit)
+    model_data = config['data_loader'](train=False)
     run_model(model, model_data, args.limit,
               verbose=not args.save_file, save_file=args.save_file)
 

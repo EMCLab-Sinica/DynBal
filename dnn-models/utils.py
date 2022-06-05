@@ -1,10 +1,8 @@
 import enum
-import functools
 import itertools
 import logging
 import os.path
 import pathlib
-import pickle
 import struct
 import sys
 import tarfile
@@ -19,6 +17,7 @@ import onnxoptimizer
 import onnxruntime
 import onnxruntime.backend as backend
 import platformdirs
+from torch.utils.data import Dataset, DataLoader
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +35,11 @@ class DataLayout(enum.Enum):
     NHWC = 4
 
 class ModelData(NamedTuple):
-    labels: List[int]
-    images: np.array
+    dataset: Dataset
     data_layout: DataLayout
+
+    def data_loader(self, limit):
+        return DataLoader(self.dataset, batch_size=(limit or len(self.dataset)))
 
 def extract_archive(archive_path: pathlib.Path, subdir: str):
     archive_dir = archive_path.with_name(subdir)
@@ -53,89 +54,8 @@ def extract_archive(archive_path: pathlib.Path, subdir: str):
                 zip_f.extractall(archive_path.parent, members=members)
     return archive_dir
 
-def load_data_cifar10(start: int, limit: int) -> ModelData:
-    archive_dir = download_file('https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz',
-                                'cifar-10-python.tar.gz', functools.partial(extract_archive, subdir='cifar-10-batches-py'))
-
-    with open(archive_dir / 'test_batch', 'rb') as f:
-        test_data = pickle.load(f, encoding='bytes')
-    if limit is None:
-        limit = len(test_data[b'labels'])
-    labels = test_data[b'labels'][start:start+limit]
-    images = []
-    H = 32
-    W = 32
-    for im_data in test_data[b'data'][start:start+limit]:
-        im = np.array(im_data)
-        im = np.reshape(im, (3, H, W))
-        im = im / 256
-        images.append(im)
-    return ModelData(labels=labels, images=np.array(images, dtype=np.float32), data_layout=DataLayout.NCHW)
-
-GOOGLE_SPEECH_URL = 'https://storage.googleapis.com/download.tensorflow.org/data/speech_commands_test_set_v0.02.tar.gz'
-GOOGLE_SPEECH_SAMPLE_RATE = 16000
-
-def load_data_google_speech(start: int, limit: int) -> ModelData:
-    import tensorflow as tf
-    import torchaudio
-
-    cache_dir = pathlib.Path('~/.cache/torchaudio/speech_commands_v2').expanduser()
-    cache_dir.mkdir(parents=True, exist_ok=True)
-
-    dataset = torchaudio.datasets.SPEECHCOMMANDS(root=cache_dir, url=GOOGLE_SPEECH_URL, download=True)
-
-    # From https://github.com/ARM-software/ML-KWS-for-MCU/blob/master/Pretrained_models/labels.txt
-    new_labels = '_silence_ _unknown_ yes no up down left right on off stop go'.split(' ')
-
-    decoded_wavs = []
-    labels = []
-    # The first few _unknown_ samples are not recognized by Hello Edge's DNN model - use good ones instead
-    for idx, data in enumerate(reversed(dataset)):
-        if idx < start:
-            continue
-        waveform, sample_rate, label, _, _ = data
-        assert sample_rate == GOOGLE_SPEECH_SAMPLE_RATE
-        decoded_wavs.append(np.expand_dims(np.squeeze(waveform), axis=-1))
-        labels.append(new_labels.index(label))
-        if limit and idx == limit - 1:
-            break
-
-    with open(kws_dnn_model(), 'rb') as f:
-        graph_def = tf.compat.v1.GraphDef()
-        graph_def.ParseFromString(f.read())
-        tf.import_graph_def(graph_def)
-
-    mfccs = []
-    with tf.compat.v1.Session() as sess:
-        mfcc_tensor = sess.graph.get_tensor_by_name('Mfcc:0')
-        for decoded_wav in decoded_wavs:
-            mfcc = sess.run(mfcc_tensor, {
-                'decoded_sample_data:0': decoded_wav,
-                'decoded_sample_data:1': GOOGLE_SPEECH_SAMPLE_RATE,
-            })
-            mfccs.append(mfcc[0])
-
-
-    return ModelData(labels=labels, images=np.array(mfccs, dtype=np.float32), data_layout=DataLayout.NEUTRAL)
-
 def kws_dnn_model():
     return download_file('https://github.com/ARM-software/ML-KWS-for-MCU/raw/master/Pretrained_models/DNN/DNN_S.pb', 'KWS-DNN_S.pb')
-
-def load_har(start: int, limit: int):
-    try:
-        orig_sys_path = sys.path.copy()
-        sys.path.append(str(THIS_DIR / 'deep-learning-HAR' / 'utils'))
-        from utilities import read_data, standardize
-
-        archive_dir = download_file('https://archive.ics.uci.edu/ml/machine-learning-databases/00240/UCI%20HAR%20Dataset.zip',
-                                    filename='UCI HAR Dataset.zip', post_processor=functools.partial(extract_archive, subdir='UCI HAR Dataset'))
-        X_test, labels_test, _ = read_data(archive_dir, split='test')
-        _, X_test = standardize(np.random.rand(*X_test.shape), X_test)
-        if limit is None:
-            limit = len(labels_test)
-        return ModelData(labels=labels_test[start:start+limit]-1, images=X_test[start:start+limit, :, :].astype(np.float32), data_layout=DataLayout.NCW)
-    finally:
-        sys.path = orig_sys_path
 
 def download_file(url: str, filename: str, post_processor: Optional[Callable] = None) -> os.PathLike:
     xdg_cache_home = platformdirs.user_cache_path()
@@ -461,15 +381,17 @@ def print_tensor(tensor, print_histogram):
 
 def run_model(model, model_data, limit, verbose=True, save_file=None):
     # Testing
+    images, labels = next(iter(model_data.data_loader(limit)))
+    images = images.numpy()
     if limit == 1:
         last_layer_out = None
         if verbose:
             print('Input')
-            print_tensor(model_data.images, False)
+            print_tensor(images, False)
         if save_file:
             model_output_pb2 = import_model_output_pb2()
             model_output = model_output_pb2.ModelOutput()
-        for layer_name, op_type, layer_out in onnxruntime_get_intermediate_tensor(model, model_data.images[0:1]):
+        for layer_name, op_type, layer_out in onnxruntime_get_intermediate_tensor(model, images):
             if verbose:
                 print(f'{op_type} layer: {layer_name}')
                 print_tensor(layer_out, op_type in ('Conv', 'Gemm'))
@@ -493,14 +415,14 @@ def run_model(model, model_data, limit, verbose=True, save_file=None):
         return last_layer_out
     else:
         correct = 0
-        layer_outs = onnxruntime_prepare_model(model).run(model_data.images)[0]
+        layer_outs = onnxruntime_prepare_model(model).run(images)[0]
         for idx, layer_out in enumerate(layer_outs):
             predicted = np.argmax(layer_out)
-            if predicted == model_data.labels[idx]:
+            if predicted == labels[idx]:
                 if verbose:
                     print(f'Correct at idx={idx}')
                 correct += 1
-        total = len(model_data.labels)
+        total = len(labels)
         accuracy = correct/total
         if verbose:
             print(f'correct={correct} total={total} rate={accuracy}')

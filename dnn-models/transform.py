@@ -198,7 +198,9 @@ Constants.CONFIG = args.config
 if args.all_samples:
     Constants.N_SAMPLES = config['n_all_samples']
     Constants.NVM_SIZE += config['n_all_samples'] * 2*config['total_sample_size']  # multiply by 2 for Q15
-model_data = config['data_loader'](start=0, limit=Constants.N_SAMPLES)
+model_data = config['data_loader'](train=False)
+images, labels = next(iter(model_data.data_loader(limit=Constants.N_SAMPLES)))
+images = images.numpy()
 
 orig_model = load_model(config, model_variant=args.model_variant, for_deployment=False)
 Constants.FIRST_SAMPLE_OUTPUTS = list(run_model(orig_model, model_data, limit=1, verbose=False)[0])
@@ -490,6 +492,7 @@ def to_bytes(arr, size=16):
     }
     if size not in FORMAT_CHARS:
         raise ValueError(f'Unsupported size {size}')
+    # https://stackoverflow.com/a/34794744
     return struct.pack('%u%c' % (len(arr), FORMAT_CHARS[size]), *arr)
 
 def nchw2nhwc(arr, dims):
@@ -602,7 +605,7 @@ total_params = 0
 for params in parameters:
     if params is None:  # input
         # Actual data for test samples are added last
-        dims = model_data.images[0].shape
+        dims = images[0].shape
         model_parameters_info.write(to_bytes(parameters_slot.offset, size=32))  # params_offset
         model_parameters_info.write(to_bytes(np.prod(dims) * 2, size=32))  # A _q15 is 16-bit
         model_parameters_info.write(to_bytes(Constants.SLOT_TEST_SET, size=8))     # slot
@@ -693,11 +696,9 @@ def ensure_channel_last(images, data_layout):
     else:
         raise NotImplementedError
 
-images = ensure_channel_last(model_data.images, model_data.data_layout)
-for idx in range(model_data.images.shape[0]):
+images = ensure_channel_last(images, model_data.data_layout)
+for idx in range(images.shape[0]):
     im = images[idx, :]
-    # load_data returns NCHW
-    # https://stackoverflow.com/a/34794744
     outputs['samples'].write(to_bytes(_Q15(im.flatten(order='C') / config['input_scale'], 'Input')))
     if args.write_images:
         import cv2
@@ -706,12 +707,12 @@ for idx in range(model_data.images.shape[0]):
         im = np.squeeze(im * 256)
         cv2.imwrite(f'images/test{idx:02d}.png', im)
 
-for label in model_data.labels:
+for label in labels:
     outputs['labels'].write(to_bytes(label, size=8))
 
 if args.write_images:
     with open('images/ans.txt', 'w') as f:
-        f.write(' '.join(map(str, model_data.labels)))
+        f.write(' '.join(map(str, labels)))
 
 pathlib.Path(args.data_output_dir).mkdir(exist_ok=True)
 
