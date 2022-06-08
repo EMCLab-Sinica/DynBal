@@ -21,6 +21,7 @@ import numpy as np
 from configs import configs
 from utils import (
     DataLayout,
+    THIS_DIR,
     extract_data,
     get_attr,
     find_kernel_shape,
@@ -107,7 +108,7 @@ def init_cffi():
     ffi = cffi.FFI()
 
     c_sources = ''
-    with open('common/data_structures.h') as f:
+    with open(THIS_DIR.parent / 'common' / 'data_structures.h') as f:
         for line in f:
             if line.startswith(('#include', 'static_assert')):
                 continue
