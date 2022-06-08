@@ -3,6 +3,7 @@
 #include <cstddef> /* size_t, see https://stackoverflow.com/a/26413264 */
 #include <cstdint>
 #include "data.h"
+#include "data_structures.h"
 
 /**********************************
  *        Data structures         *
@@ -12,48 +13,6 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic error "-Wpadded"
 #endif
-
-struct ConvNodeFlags {
-    uint16_t input_tile_c;
-    uint16_t output_tile_c;
-    uint8_t pads[4];
-    uint8_t kernel_shape[2];
-    uint8_t strides[2];
-};
-
-struct MaxPoolFlags {
-    uint8_t kernel_shape[2];
-    uint8_t strides[2];
-    uint8_t ceil;
-    uint8_t nhwc2nchw;
-};
-
-struct GemmNodeFlags {
-    uint16_t tile_channel;
-};
-
-struct GemmMergeNodeFlags {
-    uint16_t tile_length;
-};
-
-struct SqueezeNodeFlags {
-    uint8_t axes;
-};
-
-struct ConcatNodeFlags {
-    int8_t axis;
-};
-
-union NodeFlags {
-    ConvNodeFlags conv;
-    MaxPoolFlags maxpool;
-    GemmNodeFlags gemm;
-    GemmMergeNodeFlags gemmmerge;
-    SqueezeNodeFlags squeeze;
-    ConcatNodeFlags concat;
-};
-
-static_assert(sizeof(NodeFlags) == 12, "Unexpected size for NodeFlags");
 
 typedef struct Node {
     char name[NODE_NAME_LEN];

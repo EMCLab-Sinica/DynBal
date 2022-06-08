@@ -1,5 +1,4 @@
 import argparse
-import ctypes
 import dataclasses
 import io
 import itertools
@@ -13,6 +12,7 @@ import textwrap
 import warnings
 from typing import List
 
+import cffi
 import onnx
 import onnx.defs
 import onnx.helper
@@ -103,59 +103,24 @@ def _Q15(arr, name):
 
     return (arr * 2 ** 15).astype(int)
 
-# https://stackoverflow.com/a/11481471/3786245
-class ConvNodeFlags(ctypes.Structure):
-    _fields_ = [
-        ("input_tile_c", ctypes.c_uint16),
-        ("output_tile_c", ctypes.c_uint16),
-        ("pads", ctypes.c_uint8 * 4),
-        ("kernel_shape", ctypes.c_uint8 * 2),
-        ("strides", ctypes.c_uint8 * 2),
-    ]
+def init_cffi():
+    ffi = cffi.FFI()
 
-class MaxPoolFlags(ctypes.Structure):
-    _fields_ = [
-        ("kernel_shape", ctypes.c_uint8 * 2),
-        ("strides", ctypes.c_uint8 * 2),
-        ("ceil", ctypes.c_uint8),
-        ("nhwc2nchw", ctypes.c_uint8),
-    ]
+    c_sources = ''
+    with open('common/data_structures.h') as f:
+        for line in f:
+            if line.startswith(('#include', 'static_assert')):
+                continue
+            c_sources += line
+    ffi.cdef(c_sources)
+    return ffi
 
-class GemmNodeFlags(ctypes.Structure):
-    _fields_ = [
-        ("tile_channel", ctypes.c_uint16, 16),
-    ]
-
-class GemmMergeNodeFlags(ctypes.Structure):
-    _fields_ = [
-        ("tile_length", ctypes.c_uint16, 16),
-    ]
-
-class SqueezeNodeFlags(ctypes.Structure):
-    _fields_ = [
-        ("axes", ctypes.c_uint8, 8),  # a bitmap for axes to squeeze/unsqueeze
-    ]
-
-class ConcatNodeFlags(ctypes.Structure):
-    _fields_ = [
-        ("axis", ctypes.c_int8, 8),
-    ]
-
-class NodeFlags(ctypes.Union):
-    _fields_ = [
-        ("conv", ConvNodeFlags),
-        ("maxpool", MaxPoolFlags),
-        ("gemm", GemmNodeFlags),
-        ("gemmmerge", GemmMergeNodeFlags),
-        ("squeeze", SqueezeNodeFlags),
-        ("concat", ConcatNodeFlags),
-        ("as_bytes", ctypes.c_uint8 * 12),
-    ]
+ffi = init_cffi()
 
 class ONNXNodeWrapper:
     def __init__(self, orig_node: onnx.NodeProto):
         self.orig_node = orig_node
-        self.flags = NodeFlags()
+        self.flags = ffi.new('union NodeFlags*')
 
     def __getattr__(self, name):
         return getattr(self.orig_node, name)
@@ -310,20 +275,19 @@ for idx, n in enumerate(nodes):
         output = n.output
     if n.op_type == 'Conv':
         conv_param_names.add(n.input[1])
-        # https://stackoverflow.com/questions/4145775/how-do-i-convert-a-python-list-into-a-c-array-by-using-ctypes
-        n.flags.conv.pads = (ctypes.c_uint8 * 4)(*infer_auto_pad(onnx_model, n))
+        n.flags.conv.pads = infer_auto_pad(onnx_model, n)
     if n.op_type in ('Conv', 'MaxPool'):
         extra_flags = getattr(n.flags, n.op_type.lower())
         kernel_shape = find_kernel_shape(onnx_model, n)
-        extra_flags.kernel_shape = (ctypes.c_uint8*2)(*kernel_shape)
+        extra_flags.kernel_shape = kernel_shape
         strides = get_attr(n, 'strides')
         if strides is not None:
-            extra_flags.strides = (ctypes.c_uint8*2)(*strides)
+            extra_flags.strides = strides
         else:
             # "If not present, the stride defaults to 1 along each spatial axis."
             # https://github.com/onnx/onnx/blob/main/docs/Operators.md#Conv
             # https://github.com/onnx/onnx/blob/main/docs/Operators.md#maxpool
-            extra_flags.strides = (ctypes.c_uint8*2)(1, 1)
+            extra_flags.strides = (1, 1)
     if n.op_type == 'MaxPool':
         ceil_mode = get_attr(n, 'ceil_mode')
         if ceil_mode:
@@ -355,7 +319,7 @@ class Node:
     output_name: str
     inputs: List[int]
     op_type: str
-    flags: NodeFlags
+    flags: object
     max_output_id: int
 
 def extend_for_footprints(n):
@@ -555,8 +519,7 @@ for node in graph:
         output_nodes.write(to_bytes(0))
     output_nodes.write(to_bytes(node.max_output_id))
     output_nodes.write(to_bytes(ops.index(node.op_type)))
-    assert ctypes.sizeof(node.flags.as_bytes) == ctypes.sizeof(node.flags), f'Node flags require {ctypes.sizeof(node.flags)} bytes'
-    for idx in range(ctypes.sizeof(node.flags.as_bytes)):
+    for idx in range(ffi.sizeof(node.flags.as_bytes)):
         output_nodes.write(to_bytes(node.flags.as_bytes[idx], size=8))
     if Constants.HAWAII:
         for _ in range(2):
