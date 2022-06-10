@@ -10,7 +10,6 @@ import pprint
 import struct
 import textwrap
 import warnings
-from typing import List
 
 import cffi
 import onnx
@@ -121,7 +120,10 @@ ffi = init_cffi()
 class ONNXNodeWrapper:
     def __init__(self, orig_node: onnx.NodeProto):
         self.orig_node = orig_node
+        self.max_output_id = 0
         self.flags = ffi.new('union NodeFlags*')
+        self.name = orig_node.name or orig_node.op_type
+        self.inputs = []
 
     def __getattr__(self, name):
         return getattr(self.orig_node, name)
@@ -314,15 +316,6 @@ for idx, n in enumerate(nodes):
 
 pprint.pprint(names)
 
-@dataclasses.dataclass
-class Node:
-    name: str
-    output_name: str
-    inputs: List[int]
-    op_type: str
-    flags: object
-    max_output_id: int
-
 def extend_for_footprints(n):
     return n + n // Constants.BATCH_SIZE
 
@@ -415,24 +408,18 @@ def determine_gemm_tile_sizes(n):
 
     assert (tile_size_unit * 2) * (node_flags.tile_channel + 2) <= Constants.ARM_PSTATE_LEN
 
-graph = []
 for n in nodes:
     if n.op_type == 'Conv':
         determine_conv_tile_c(n)
     if n.op_type == 'Gemm':
         determine_gemm_tile_sizes(n)
-    graph.append(Node(name=n.name or n.op_type,
-                      output_name=n.output[0],
-                      inputs=[names[i] for i in n.input],
-                      op_type=n.op_type,
-                      flags=n.flags,
-                      max_output_id=0))
+    n.inputs = [names[i] for i in n.input]
 
-for idx, node in enumerate(graph):
+for idx, node in enumerate(nodes):
     for inp in node.inputs:
         if inp < Constants.N_INPUT:
             continue
-        used_node = graph[inp - Constants.N_INPUT]
+        used_node = nodes[inp - Constants.N_INPUT]
         used_node.max_output_id = max([idx, used_node.max_output_id])
 
 parameters = [None for _ in range(Constants.N_INPUT)]
@@ -444,7 +431,7 @@ for params in onnx_model.graph.initializer:
     assert parameters[names[params.name]] is None
     parameters[names[params.name]] = params
 
-pprint.pprint(graph)
+pprint.pprint(nodes)
 
 def to_bytes(arr, size=16):
     if not np.shape(arr):
@@ -475,7 +462,7 @@ outputs = {
     'labels': io.BytesIO(),
 }
 
-Constants.MODEL_NODES_LEN = len(graph)
+Constants.MODEL_NODES_LEN = len(nodes)
 
 model = outputs['model']
 model.write(to_bytes(0))  # Model.running
@@ -500,7 +487,7 @@ class ParametersSlot:
 parameters_slot = ParametersSlot(offset=0, target=outputs['parameters'], slot_id=Constants.SLOT_PARAMETERS)
 
 output_nodes = outputs['nodes']
-for node in graph:
+for node in nodes:
     Constants.NUM_INPUTS = max(Constants.NUM_INPUTS, len(node.inputs))
 logger.info('Maximum number of inputs = %d', Constants.NUM_INPUTS)
 
@@ -510,9 +497,9 @@ def write_str(buffer: io.BytesIO, data: str):
     assert Constants.NODE_NAME_LEN >= len(data), f'String too long: {data}'
     buffer.write(data.encode('ascii') + b'\0' * (Constants.NODE_NAME_LEN - len(data)))
 
-for node in graph:
+for node in nodes:
     write_str(output_nodes, node.name)
-    write_str(output_nodes, node.output_name)
+    write_str(output_nodes, node.output[0])
     output_nodes.write(to_bytes(len(node.inputs)))
     for inp in node.inputs:
         output_nodes.write(to_bytes(inp))
