@@ -6,7 +6,6 @@ import logging
 import math
 import os.path
 import pathlib
-import pprint
 import struct
 import textwrap
 import warnings
@@ -314,8 +313,6 @@ for idx, n in enumerate(nodes):
     for output_ in output:
         names[output_] = idx + Constants.N_INPUT
 
-pprint.pprint(names)
-
 def extend_for_footprints(n):
     return n + n // Constants.BATCH_SIZE
 
@@ -431,11 +428,8 @@ for params in onnx_model.graph.initializer:
     assert parameters[names[params.name]] is None
     parameters[names[params.name]] = params
 
-pprint.pprint(nodes)
-
 def to_bytes(arr, size=16):
-    if not np.shape(arr):
-        arr = [arr]
+    arr = np.array(arr).flatten()
     FORMAT_CHARS = {
         8: 'B',  # unsigned char
         16: 'h',
@@ -555,38 +549,30 @@ for params in parameters:
             model_parameters_info.write(to_bytes(0))
         write_scale(model_parameters_info, config['input_scale'])
     else:
-        param_scale = 0
         assert len(params.dims) <= 4
+        params_data = onnx.numpy_helper.to_array(params)
+        model_parameters_info.write(to_bytes(parameters_slot.offset, size=32))  # params_offset
         if params.data_type == onnx.TensorProto.FLOAT:
-            float_data = onnx.numpy_helper.to_array(params)
-            data_len = len(float_data)
-            assert data_len > 0
-            slot = parameters_slot
-            model_parameters_info.write(to_bytes(slot.offset, size=32))  # params_offset
-            model_parameters_info.write(to_bytes(data_len * 2, size=32))  # A _q15 is 16-bit
+            param_size = 2
             if params.name in conv_param_names:
                 logger.info('Reorder conv param %s', params.name)
-                float_data = nchw2nhwc(float_data, params.dims)
+                params_data = nchw2nhwc(params_data, params.dims)
             used_node = find_node_by_input(onnx_model.graph.node, params.name)
             if used_node.op_type in ('Conv', 'Gemm'):
                 param_scale = get_param_limit(onnx_model, used_node)
             else:
                 param_scale = config['scale']
-            slot.target.write(to_bytes(_Q15(np.array(float_data) / param_scale, 'Parameter')))
-            slot.offset += 2 * len(float_data)
+            parameters_slot.target.write(to_bytes(_Q15(params_data / param_scale, 'Parameter')))
         elif params.data_type == onnx.TensorProto.INT64:
-            int64_data = onnx.numpy_helper.to_array(params)
-            data_len = len(int64_data)
-            assert data_len > 0
-            slot = parameters_slot
-            model_parameters_info.write(to_bytes(slot.offset, size=32))  # params_offset
-            model_parameters_info.write(to_bytes(data_len * 8, size=32))
-            for param in int64_data:
-                slot.target.write(to_bytes(param, size=64))
-                slot.offset += 8
+            param_size = 8
+            for param in params_data:
+                parameters_slot.target.write(to_bytes(param, size=64))
         else:
             assert False
-        model_parameters_info.write(to_bytes(slot.slot_id, size=8))  # slot
+        data_len = np.prod(params.dims)
+        parameters_slot.offset += data_len * param_size
+        model_parameters_info.write(to_bytes(data_len * param_size, size=32))
+        model_parameters_info.write(to_bytes(parameters_slot.slot_id, size=8))  # slot
         model_parameters_info.write(to_bytes(0, size=8))  # param_flags
         if len(params.dims) == 4:
             channels = params.dims[1]
