@@ -16,13 +16,13 @@ import cffi
 import onnx
 import onnx.defs
 import onnx.helper
+import onnx.numpy_helper
 import numpy as np
 
 from configs import configs
 from utils import (
     DataLayout,
     THIS_DIR,
-    extract_data,
     get_attr,
     find_kernel_shape,
     find_initializer,
@@ -236,7 +236,7 @@ def transpose_gemm(onnx_model: onnx.ModelProto):
         B = find_initializer(onnx_model, node.input[1])
         if transB != 1 or B is None:
             continue
-        data = extract_data(B)
+        data = onnx.numpy_helper.to_array(B)
         data = np.transpose(data)
         B.CopyFrom(onnx.helper.make_tensor(B.name, B.data_type, (B.dims[1], B.dims[0]), np.concatenate(data)))
         for idx, attr in enumerate(node.attribute):
@@ -528,20 +528,6 @@ for node in graph:
 
 parameter_info_idx = 0
 
-def decode_raw_data(params):
-    format_char = {
-        onnx.TensorProto.FLOAT: 'f',
-        onnx.TensorProto.INT64: 'q',
-    }[params.data_type]
-    return list(map(lambda t: t[0], struct.iter_unpack(format_char, params.raw_data)))
-
-def get_float_data(param):
-    if param.float_data:
-        float_data = param.float_data
-    else:
-        float_data = decode_raw_data(param)
-    return float_data
-
 param_limits = {}
 def get_param_limit(model, node):
     key = node.output[0]
@@ -550,7 +536,7 @@ def get_param_limit(model, node):
 
     param_scale = 1
     for input_idx, input_ in enumerate(node.input[1:]):  # weights & possibly biases
-        param_limit = np.max(np.abs(get_float_data(find_initializer(model, input_))))
+        param_limit = np.max(np.abs(onnx.numpy_helper.to_array(find_initializer(model, input_))))
         param_scale = max(param_scale, param_limit)
     param_limits[key] = param_scale
     return param_scale
@@ -585,7 +571,7 @@ for params in parameters:
         param_scale = 0
         assert len(params.dims) <= 4
         if params.data_type == onnx.TensorProto.FLOAT:
-            float_data = get_float_data(params)
+            float_data = onnx.numpy_helper.to_array(params)
             data_len = len(float_data)
             assert data_len > 0
             slot = parameters_slot
@@ -602,10 +588,7 @@ for params in parameters:
             slot.target.write(to_bytes(_Q15(np.array(float_data) / param_scale, 'Parameter')))
             slot.offset += 2 * len(float_data)
         elif params.data_type == onnx.TensorProto.INT64:
-            if params.int64_data:
-                int64_data = params.int64_data
-            else:
-                int64_data = decode_raw_data(params)
+            int64_data = onnx.numpy_helper.to_array(params)
             data_len = len(int64_data)
             assert data_len > 0
             slot = parameters_slot

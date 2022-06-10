@@ -3,7 +3,6 @@ import itertools
 import logging
 import os.path
 import pathlib
-import struct
 import sys
 import tarfile
 import zipfile
@@ -83,27 +82,6 @@ def download_file(url: str, filename: str, post_processor: Optional[Callable] = 
             ret = post_processor(local_path)
 
     return ret
-
-def extract_data(params):
-    if params.data_type == onnx.TensorProto.FLOAT and params.float_data:
-        ret = params.float_data
-    elif params.data_type == onnx.TensorProto.INT64 and params.int64_data:
-        ret = params.int64_data
-
-    else:
-        format_char = {
-            onnx.TensorProto.FLOAT: 'f',
-            onnx.TensorProto.INT64: 'q',
-        }[params.data_type]
-        ret = list(map(lambda t: t[0], struct.iter_unpack(format_char, params.raw_data)))
-
-    # Undocumented (?) - empty dims means scalar
-    # https://github.com/onnx/onnx/issues/1131
-    if not len(params.dims):
-        assert len(ret) == 1
-        return ret[0]
-
-    return np.reshape(ret, params.dims)
 
 def find_initializer(onnx_model: onnx.ModelProto, name: str) -> Optional[onnx.TensorProto]:
     for initializer in onnx_model.graph.initializer:
