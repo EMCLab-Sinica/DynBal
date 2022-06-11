@@ -34,7 +34,8 @@ from utils import (
 )
 from onnx_utils import (
     compute_parameter_scales,
-    parse_tensor_annotations,
+    find_tensor_annotation,
+    list_tensors_for_annotations,
 )
 
 logging.basicConfig()
@@ -273,8 +274,6 @@ for idx, initializer in enumerate(onnx_model.graph.initializer):
 
 compute_parameter_scales(onnx_model)
 
-tensor_annotations, tensors_referenced_in_annotations = parse_tensor_annotations(onnx_model)
-
 Constants.N_INPUT = len(names.keys())
 logger.info('Constants.N_INPUT = %d', Constants.N_INPUT)
 
@@ -429,6 +428,7 @@ for idx, node in enumerate(nodes):
 
 parameters = [None for _ in range(Constants.N_INPUT)]
 
+tensors_referenced_in_annotations = list_tensors_for_annotations(onnx_model)
 for params in onnx_model.graph.initializer:
     if params.data_type not in (onnx.TensorProto.FLOAT, onnx.TensorProto.INT64):
         raise Exception('unsupported data type {}'.format(params.data_type))
@@ -555,7 +555,7 @@ for params in parameters:
                 logger.info('Reorder conv param %s', params.name)
                 params_data = nchw2nhwc(params_data, params.dims)
             used_node = find_node_by_input(onnx_model.graph.node, params.name)
-            param_scale = tensor_annotations.get(params.name, {}).get('Q15_SCLAE_TENSOR', config['scale'])
+            param_scale = find_tensor_annotation(onnx_model, key='Q15_SCLAE_TENSOR', tensor_name=params.name) or config['scale']
             parameters_slot.target.write(to_bytes(_Q15(params_data / param_scale, 'Parameter')))
         elif params.data_type == onnx.TensorProto.INT64:
             param_size = 8

@@ -22,15 +22,21 @@ def add_tensor_annotation(onnx_model, key, tensor_name, data_type, vals):
                                      dims=np.shape(vals), vals=vals.flatten())
     onnx_model.graph.initializer.append(tensor)
 
-def parse_tensor_annotations(onnx_model: onnx.ModelProto):
-    tensor_annotations = {}
+def find_tensor_annotation(onnx_model: onnx.ModelProto, key: str, tensor_name: str):
+    for tensor_annotation in onnx_model.graph.quantization_annotation:
+        if tensor_annotation.tensor_name != tensor_name:
+            continue
+        for mapping in tensor_annotation.quant_parameter_tensor_names:
+            if key != mapping.key:
+                continue
+            return onnx.numpy_helper.to_array(find_initializer(onnx_model, mapping.value))
+
+def list_tensors_for_annotations(onnx_model: onnx.ModelProto):
     referenced_tensors = []
     for tensor_annotation in onnx_model.graph.quantization_annotation:
-        d = tensor_annotations.setdefault(tensor_annotation.tensor_name, {})
         for mapping in tensor_annotation.quant_parameter_tensor_names:
-            d[mapping.key] = onnx.numpy_helper.to_array(find_initializer(onnx_model, mapping.value))
             referenced_tensors.append(mapping.value)
-    return tensor_annotations, referenced_tensors
+    return referenced_tensors
 
 def get_param_limit(model: onnx.ModelProto, node: onnx.NodeProto):
     param_limit = 1
