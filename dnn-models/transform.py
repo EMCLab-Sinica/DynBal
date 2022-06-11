@@ -32,6 +32,10 @@ from utils import (
     load_model,
     run_model,
 )
+from onnx_utils import (
+    compute_parameter_scales,
+    parse_tensor_annotations,
+)
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
@@ -267,6 +271,10 @@ for idx, initializer in enumerate(onnx_model.graph.initializer):
     if initializer.name not in names:
         names[initializer.name] = idx + inputs_len
 
+compute_parameter_scales(onnx_model)
+
+tensor_annotations, tensors_referenced_in_annotations = parse_tensor_annotations(onnx_model)
+
 Constants.N_INPUT = len(names.keys())
 logger.info('Constants.N_INPUT = %d', Constants.N_INPUT)
 
@@ -424,6 +432,8 @@ parameters = [None for _ in range(Constants.N_INPUT)]
 for params in onnx_model.graph.initializer:
     if params.data_type not in (onnx.TensorProto.FLOAT, onnx.TensorProto.INT64):
         raise Exception('unsupported data type {}'.format(params.data_type))
+    if params.name in tensors_referenced_in_annotations:
+        continue
 
     assert parameters[names[params.name]] is None
     parameters[names[params.name]] = params
@@ -509,19 +519,6 @@ for node in nodes:
 
 parameter_info_idx = 0
 
-param_limits = {}
-def get_param_limit(model, node):
-    key = node.output[0]
-    if key in param_limits:
-        return param_limits[key]
-
-    param_scale = 1
-    for input_idx, input_ in enumerate(node.input[1:]):  # weights & possibly biases
-        param_limit = np.max(np.abs(onnx.numpy_helper.to_array(find_initializer(model, input_))))
-        param_scale = max(param_scale, param_limit)
-    param_limits[key] = param_scale
-    return param_scale
-
 def write_scale(dest, scale):
     shift = 0
     while scale >= 1:
@@ -558,10 +555,7 @@ for params in parameters:
                 logger.info('Reorder conv param %s', params.name)
                 params_data = nchw2nhwc(params_data, params.dims)
             used_node = find_node_by_input(onnx_model.graph.node, params.name)
-            if used_node.op_type in ('Conv', 'Gemm'):
-                param_scale = get_param_limit(onnx_model, used_node)
-            else:
-                param_scale = config['scale']
+            param_scale = tensor_annotations.get(params.name, {}).get('Q15_SCLAE_TENSOR', config['scale'])
             parameters_slot.target.write(to_bytes(_Q15(params_data / param_scale, 'Parameter')))
         elif params.data_type == onnx.TensorProto.INT64:
             param_size = 8
