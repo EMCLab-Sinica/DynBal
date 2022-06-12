@@ -63,6 +63,7 @@ void float_to_scale_params(int16_t *scaleFract, uint8_t *shift, const Scale& sca
 }
 
 void float_to_scale_params(int16_t *scaleFract, uint8_t *shift, float scale) {
+    MY_ASSERT(scale > 0);
     *shift = 0;
     while (scale >= 1) {
         scale /= 2;

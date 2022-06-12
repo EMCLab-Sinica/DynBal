@@ -305,24 +305,27 @@ bool Scale::operator>(const Scale& other) const {
 }
 
 Scale Scale::operator*(const Scale& other) const {
-    Scale newScale;
-    newScale.fromFloat(this->toFloat() * other.toFloat());
+    Scale newScale(*this);
+    newScale.fract = (static_cast<int32_t>(newScale.fract) * other.fract / 32768);
+    newScale.shift += other.shift;
     return newScale;
 }
 
 Scale Scale::operator/(const Scale& other) const {
-    Scale newScale;
-    newScale.fromFloat(this->toFloat() / other.toFloat());
+    Scale newScale(*this);
+    int32_t newFract = (static_cast<int32_t>(newScale.fract) * 32768 / other.fract);
+    while (newFract >= 32768 || newScale.shift < other.shift) {
+        newFract /= 2;
+        newScale.shift++;
+    }
+    newScale.fract = newFract;
+    newScale.shift -= other.shift;
     return newScale;
 }
 
 bool Scale::operator!=(const Scale& other) const {
     // XXX: missing accuracy?
     return this->toFloat() != other.toFloat();
-}
-
-void Scale::fromFloat(float scale) {
-    float_to_scale_params(&this->fract, &this->shift, scale);
 }
 
 float Scale::toFloat() const {

@@ -42,7 +42,6 @@ struct Scale {
     Scale operator*(const Scale& other) const;
     Scale operator/(const Scale& other) const;
     bool operator!=(const Scale& other) const;
-    void fromFloat(float scale);
     float toFloat() const;
 };
 
