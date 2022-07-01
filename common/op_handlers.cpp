@@ -383,59 +383,59 @@ void handle_add(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
 #endif
 
     uint16_t buffer_size = X->dims[1];
-    int16_t *buffer_a = lea_buffer,
-            *buffer_b = buffer_a + buffer_size;
-    my_memcpy_from_param(model, buffer_b, Y, 0, buffer_size * sizeof(int16_t));
+    int16_t *buffer_x = lea_buffer,
+            *buffer_y = buffer_x + buffer_size;
+    my_memcpy_from_param(model, buffer_y, Y, 0, buffer_size * sizeof(int16_t));
 #if JAPARI
     start_cpu_counter(offsetof(Counters, embedding));
-    move_weights(buffer_b, false, extend_for_footprints(buffer_size), buffer_size);
+    move_weights(buffer_y, false, extend_for_footprints(buffer_size), buffer_size);
     stop_cpu_counter();
 #endif
-    my_printf_debug("weights" NEWLINE);
-    dump_matrix_debug(buffer_b, buffer_size, ValueInfo(Y), false);
+    my_printf_debug("Y" NEWLINE);
+    dump_matrix_debug(buffer_y, buffer_size, ValueInfo(Y), false);
 
     int16_t scaleFract;
     uint8_t shift;
     float_to_scale_params(&scaleFract, &shift, Y->scale/X->scale);
-    my_scale_q15(buffer_b, scaleFract, shift, buffer_b, buffer_size);
+    my_scale_q15(buffer_y, scaleFract, shift, buffer_y, buffer_size);
 
     uint16_t idx = data_offset / buffer_size;
     uint16_t cur_buffer_size = buffer_size - (data_offset - idx * buffer_size);
     for (; idx < X->dims[2]; idx++) {
         my_printf_debug("data_offset=%d" NEWLINE, data_offset);
-        my_memcpy_from_param(model, buffer_a, X, data_offset, cur_buffer_size * sizeof(int16_t));
+        my_memcpy_from_param(model, buffer_x, X, data_offset, cur_buffer_size * sizeof(int16_t));
 #if STATEFUL
         my_printf_debug("Before strip states" NEWLINE);
-        dump_matrix_debug(buffer_a, cur_buffer_size, ValueInfo(output), false);
+        dump_matrix_debug(buffer_x, cur_buffer_size, ValueInfo(output), false);
 
         start_cpu_counter(offsetof(Counters, state_query));
         check_next_turning_point(input_offset, input_turning_point_idx, next_input_turning_point, input_slot_info, data_offset);
         stop_cpu_counter();
 
         start_cpu_counter(offsetof(Counters, embedding));
-        update_states(buffer_a, cur_buffer_size, data_offset, input_offset, next_input_turning_point, false);
+        update_states(buffer_x, cur_buffer_size, data_offset, input_offset, next_input_turning_point, false);
         stop_cpu_counter();
 
         my_printf_debug("After strip states" NEWLINE);
-        dump_matrix_debug(buffer_a, cur_buffer_size, ValueInfo(output), false);
+        dump_matrix_debug(buffer_x, cur_buffer_size, ValueInfo(output), false);
 #endif
 
-        my_add_q15(buffer_a, buffer_b + (buffer_size - cur_buffer_size), buffer_a, cur_buffer_size);
+        my_add_q15(buffer_x, buffer_y + (buffer_size - cur_buffer_size), buffer_x, cur_buffer_size);
         my_printf_debug("After add" NEWLINE);
-        dump_matrix_debug(buffer_a, cur_buffer_size, ValueInfo(output), false);
+        dump_matrix_debug(buffer_x, cur_buffer_size, ValueInfo(output), false);
 
 #if INDIRECT_RECOVERY
         start_cpu_counter(offsetof(Counters, state_query));
         check_next_turning_point(output_offset, output_turning_point_idx, next_output_turning_point, output_slot_info, data_offset);
         stop_cpu_counter();
         start_cpu_counter(offsetof(Counters, embedding));
-        update_states(buffer_a, cur_buffer_size, data_offset, output_offset, next_output_turning_point, true);
+        update_states(buffer_x, cur_buffer_size, data_offset, output_offset, next_output_turning_point, true);
         stop_cpu_counter();
         my_printf_debug("After embedding states" NEWLINE);
-        dump_matrix_debug(buffer_a, cur_buffer_size, ValueInfo(output), true);
+        dump_matrix_debug(buffer_x, cur_buffer_size, ValueInfo(output), true);
 #endif
 
-        my_memcpy_to_param(output, data_offset, buffer_a, cur_buffer_size * sizeof(int16_t), 0, true);
+        my_memcpy_to_param(output, data_offset, buffer_x, cur_buffer_size * sizeof(int16_t), 0, true);
         data_offset += cur_buffer_size;
 #if HAWAII
         write_hawaii_layer_footprint(model->layer_idx, cur_buffer_size/BATCH_SIZE*BATCH_SIZE);
