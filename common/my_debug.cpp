@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <memory>
 #include "counters.h"
+#include "data.h"
 #include "my_debug.h"
 #include "cnn_common.h"
 #include "intermittent-cnn.h"
@@ -141,8 +142,14 @@ void dump_params_nhwc(Model *model, const ParameterInfo *cur_param, const char* 
                 }
                 for (uint16_t h = 0; h < H; h++) {
                     for (uint16_t w = 0; w < W; w++) {
-                        // internal format is NHWC
-                        size_t offset2 = n * H * W * CHANNEL + H * W * tile_c_base + h * W * cur_tile_c + w * cur_tile_c + c;
+                        size_t offset2;
+                        if (cur_param->param_flags & TRANSPOSED) {
+                            // internal format is NWHC
+                            offset2 = n * W * H * CHANNEL + W * H * tile_c_base + w * H * cur_tile_c + h * cur_tile_c + c;
+                        } else {
+                            // internal format is NHWC
+                            offset2 = n * H * W * CHANNEL + H * W * tile_c_base + h * W * cur_tile_c + w * cur_tile_c + c;
+                        }
                         print_q15(layer_out, get_q15_param(model, cur_param, offset2), ValueInfo(cur_param, model), offset_has_state(offset2));
                     }
                     PRINT_NEWLINE_IF_DATA_NOT_SAVED

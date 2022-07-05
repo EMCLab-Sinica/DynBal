@@ -91,6 +91,7 @@ class Constants:
 other_flags = [
     # parameter flags
     'CHANNEL_FIRST',
+    'TRANSPOSED',
 ]
 
 def op_flag(flag):

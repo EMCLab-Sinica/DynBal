@@ -205,6 +205,8 @@ def add_merge_nodes(model):
             logger.warning('skipping audio operator %s', n.op_type)
             continue
         new_nodes.append(n)
+        if idx+1 < len(model.graph.node) and model.graph.node[idx+1].op_type == n.op_type:
+            continue
         if n.op_type in OPS_WITH_MERGE:
             output_name = n.output[0]
             new_node = onnx.NodeProto()
