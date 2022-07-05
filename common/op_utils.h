@@ -6,7 +6,7 @@
 
 // TODO: make these adjustable on runtime
 #if !USE_ARM_CMSIS
-#define OUTPUT_LEN 100
+#define OUTPUT_LEN 128
 #else
 #define OUTPUT_LEN 256
 #endif
