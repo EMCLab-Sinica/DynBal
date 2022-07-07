@@ -10,6 +10,7 @@
  **********************************/
 
 #if defined(__GNUC__) || defined(__clang__)
+static_assert(true, "Dummy declaration to workaround https://github.com/clangd/clangd/issues/1167");
 #pragma GCC diagnostic push
 #pragma GCC diagnostic error "-Wpadded"
 #endif
