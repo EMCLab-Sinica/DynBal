@@ -67,9 +67,8 @@ int64_t get_int64_param(const ParameterInfo *param, size_t i) {
 }
 
 uint16_t get_next_slot(Model *model, const ParameterInfo *param) {
-    uint16_t slot_id = param->slot;
-    /* pick the next unused slot */
-    uint16_t next_slot_id = slot_id;
+    /* pick a unused slot */
+    uint16_t next_slot_id = 0;
     uint8_t cycle_count = 0;
     while (1) {
         next_slot_id++;
@@ -89,12 +88,6 @@ uint16_t get_next_slot(Model *model, const ParameterInfo *param) {
         }
         const Node *slot_user = get_node(slot_user_id);
         if (slot_user->max_output_id < model->layer_idx) {
-            break;
-        }
-        // The recorded slot user is not the actual user. This happens when Concat
-        // uses a new slot for scaled IFM. The old slot is actually used by nobody
-        // and available for allocation.
-        if (get_parameter_info(N_INPUT + slot_user_id)->slot != next_slot_id) {
             break;
         }
     }

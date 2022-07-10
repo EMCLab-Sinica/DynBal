@@ -20,6 +20,7 @@ from torch.utils.data import Dataset, DataLoader
 
 logger = logging.getLogger(__name__)
 
+INPLACE_UPDATE_OPS = ['Reshape', 'Softmax', 'Squeeze', 'Unsqueeze']
 OPS_WITH_MERGE = ['Conv', 'Gemm']
 
 THIS_DIR = pathlib.Path(__file__).absolute().parent

@@ -38,6 +38,14 @@ def list_tensors_for_annotations(onnx_model: onnx.ModelProto):
             referenced_tensors.append(mapping.value)
     return referenced_tensors
 
+def dims_from_value_info(value_info: onnx.ValueInfoProto):
+    shape = value_info.type.tensor_type.shape
+    dims = []
+    for dim in shape.dim[1:]:  # The first dimension is the batch size
+        assert dim.WhichOneof('value') == 'dim_value'
+        dims.append(dim.dim_value)
+    return dims
+
 def get_param_limit(model: onnx.ModelProto, node: onnx.NodeProto):
     param_limit = 1
     for input_idx, input_ in enumerate(node.input[1:]):  # weights & possibly biases

@@ -20,6 +20,7 @@ import numpy as np
 from configs import configs
 from utils import (
     DataLayout,
+    INPLACE_UPDATE_OPS,
     THIS_DIR,
     get_attr,
     find_kernel_shape,
@@ -36,6 +37,9 @@ from onnx_utils import (
     compute_parameter_scales,
     find_tensor_annotation,
     list_tensors_for_annotations,
+)
+from model_utils import (
+    find_min_range,
 )
 
 logging.basicConfig()
@@ -76,9 +80,7 @@ class Constants:
     INDIRECT_RECOVERY = 0
     METHOD = "Baseline"
     FIRST_SAMPLE_OUTPUTS = []
-
-# XXX: Transpose does nothing as we happens to need NHWC
-inplace_update_ops = ['Reshape', 'Softmax', 'Squeeze', 'Transpose', 'Unsqueeze']
+    USE_STATES_ARRAY = 0
 
 other_flags = [
     # parameter flags
@@ -303,7 +305,7 @@ for idx, n in enumerate(nodes):
             n.flags.maxpool.ceil = 1
     if n.op_type == 'Reshape':
         prev_node = n
-        while prev_node and prev_node.op_type in inplace_update_ops:
+        while prev_node and prev_node.op_type in INPLACE_UPDATE_OPS:
             prev_node = find_node_by_output(nodes, prev_node.input[0])
         if prev_node and prev_node.op_type == 'MaxPool':
             prev_node.flags.maxpool.nhwc2nchw = 1
@@ -376,6 +378,7 @@ def determine_conv_tile_c(n):
         node_flags.input_tile_c //= 2
         logger.debug('input_tile_c=%d', node_flags.input_tile_c)
     node_flags.output_tile_c = output_tile_c
+    return output_tile_c
 
 def determine_gemm_tile_sizes(n):
     logger.debug('Determine tile size for Gemm node %s', n.name)
@@ -411,12 +414,14 @@ def determine_gemm_tile_sizes(n):
             break
 
     assert (tile_size_unit * 2) * (node_flags.tile_channel + 2) <= Constants.ARM_PSTATE_LEN
+    return tile_size_unit
 
+max_output_tile_size = 0
 for n in nodes:
     if n.op_type == 'Conv':
-        determine_conv_tile_c(n)
+        max_output_tile_size = max(max_output_tile_size, determine_conv_tile_c(n))
     if n.op_type == 'Gemm':
-        determine_gemm_tile_sizes(n)
+        max_output_tile_size = max(max_output_tile_size, determine_gemm_tile_sizes(n))
     n.inputs = [names[i] for i in n.input]
 
 for idx, node in enumerate(nodes):
@@ -425,6 +430,11 @@ for idx, node in enumerate(nodes):
             continue
         used_node = nodes[inp - Constants.N_INPUT]
         used_node.max_output_id = max([idx, used_node.max_output_id])
+
+if Constants.STATEFUL:
+    min_range = find_min_range(onnx_model, nodes, config, Constants.N_INPUT)
+    if min_range < max_output_tile_size:
+        Constants.USE_STATES_ARRAY = 1
 
 parameters = [None for _ in range(Constants.N_INPUT)]
 
@@ -686,7 +696,7 @@ struct Node;
         output_c.write(f'    alloc_{op},\n'.lower())
     output_c.write('};\n')
     for op in ops:
-        if op in inplace_update_ops:
+        if op in INPLACE_UPDATE_OPS:
             output_c.write(textwrap.dedent(f'''
                 void alloc_{op.lower()}(struct Model *model, const struct ParameterInfo *[], struct ParameterInfo *output, const struct Node*) {{
                     SlotInfo *cur_slot_info = get_slot_info(model, output->slot);
