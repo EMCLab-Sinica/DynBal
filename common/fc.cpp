@@ -81,7 +81,6 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     uint8_t output_turning_point_idx;
     SlotInfo *output_slot_info;
     find_initial_state_bit(&offset, &output_turning_point_idx, &next_output_turning_point, &output_slot_info, first_unfinished_value_offset, model, output);
-    offset = -offset;
     stop_cpu_counter();
 #endif
 
@@ -205,7 +204,7 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 
 #if STATEFUL
             start_cpu_counter(offsetof(Counters, embedding));
-            update_states(filter_ptr, tile_width, false);
+            update_states(filter_ptr, tile_width, false, true);
             stop_cpu_counter();
 #endif
 

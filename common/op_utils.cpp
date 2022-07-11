@@ -273,10 +273,10 @@ void fill_state_offsets(const uint16_t cur_output_data_offset, const uint16_t n_
     my_fill_q15(-*old_output_offset, state_offsets + last_range_start, n_filters - last_range_start);
 }
 
-void update_states(int16_t* buffer, uint16_t buffer_size, bool enforce_states) {
+void update_states(int16_t* buffer, uint16_t buffer_size, bool enforce_states, bool inverted_states) {
 #if STATEFUL
     for (uint16_t j = BATCH_SIZE - 1; j < buffer_size; j += BATCH_SIZE) {
-        buffer[j] += state_offsets[j];
+        buffer[j] += inverted_states ? -state_offsets[j] : state_offsets[j];
     }
 #endif
 #if JAPARI

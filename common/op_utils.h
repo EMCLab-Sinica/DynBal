@@ -52,7 +52,7 @@ float q15_to_float(int16_t val, const ValueInfo& val_info, uint8_t* p_use_prefix
 void my_offset_q15_batched(const int16_t *pSrc, int16_t offset, int16_t *pDst, uint32_t blockSize, bool enforce_states = false);
 #if INDIRECT_RECOVERY
 void fill_state_offsets(const uint16_t cur_output_data_offset, const uint16_t n_filters, int16_t* old_output_offset, uint8_t* turning_point_idx, uint16_t* next_turning_point, const SlotInfo* cur_slot_info);
-void update_states(int16_t* buffer, uint16_t buffer_size, bool enforce_states);
+void update_states(int16_t* buffer, uint16_t buffer_size, bool enforce_states, bool inverted_states = false);
 #endif
 #if JAPARI
 void move_weights(int16_t* filter_ptr, bool exact_tile, int16_t values_to_preserve, int16_t tile_width);
