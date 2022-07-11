@@ -178,7 +178,7 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
             bool has_state = offset_has_state(cur_output_data_offset + idx);
             if (has_state) {
                 my_printf_debug("Adding state bit for newly loaded filter idx=%d" NEWLINE, idx);
-                filter_tmp[conv_params->filter_offset - 1] = state_offsets[idx];
+                filter_tmp[conv_params->filter_offset - 1] = -state_offsets[idx];
 #if ENABLE_COUNTERS
                 counters()->embedded_values++;
 #endif
