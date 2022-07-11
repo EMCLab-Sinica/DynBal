@@ -90,7 +90,7 @@ static void flip_filter_state_bits(ConvTaskParams *conv_params, uint16_t n_filte
     counters()->embedded_values += len;
 #endif
     // need negating filter value here as it will be multiplied with _Q15(-1.0), or -32768
-    for (uint16_t idx = 0; idx < n_filters; idx++) {
+    for (uint16_t idx = BATCH_SIZE - 1; idx < n_filters; idx += BATCH_SIZE) {
         if (get_value_state_bit(to_flip_state_bits[idx]) != -get_value_state_bit(state_offsets[idx])) {
             my_printf_debug("Flipping state bit in filter %d" NEWLINE, idx);
             to_flip_state_bits[idx] += 0x8000;
@@ -99,17 +99,8 @@ static void flip_filter_state_bits(ConvTaskParams *conv_params, uint16_t n_filte
 #endif
 #if JAPARI
     int16_t *to_flip_state_bits = conv_params->filter_buffer_addr + n_filters * (conv_params->filter_offset - 1);
-    if (first_round) {
-        for (uint16_t idx = BATCH_SIZE; idx < n_filters; idx += BATCH_SIZE + 1) {
-            if (idx < n_filters - len) {
-                continue;
-            }
-            to_flip_state_bits[idx] = -to_flip_state_bits[idx];
-        }
-    } else {
-        for (uint16_t idx = BATCH_SIZE; idx < len; idx += BATCH_SIZE + 1) {
-            to_flip_state_bits[idx] = -to_flip_state_bits[idx];
-        }
+    for (uint16_t idx = BATCH_SIZE; idx < n_filters; idx += BATCH_SIZE + 1) {
+        to_flip_state_bits[idx] = (state_offsets[idx] == 0x4000) ? -1 : 1;
     }
 #endif
 }
@@ -229,11 +220,7 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
         start_cpu_counter(offsetof(Counters, embedding));
         int16_t* footprint_channels_ptr = conv_params->filter_buffer_addr + n_filters * (conv_params->filter_offset - 1);
         for (int16_t idx = BATCH_SIZE; idx < n_filters; idx += BATCH_SIZE + 1) {
-            if (idx < n_keep_state_bits) {
-                *(footprint_channels_ptr + idx) = (conv_params->old_output_offset > 0 ? 1 : -1);
-            } else {
-                *(footprint_channels_ptr + idx) = (conv_params->old_output_offset > 0 ? -1 : 1);
-            }
+            *(footprint_channels_ptr + idx) = (state_offsets[idx] == 0x4000 ? -1 : 1);
         }
         stop_cpu_counter();
 #endif

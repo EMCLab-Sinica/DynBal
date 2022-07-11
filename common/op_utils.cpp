@@ -281,7 +281,7 @@ void update_states(int16_t* buffer, uint16_t buffer_size, bool enforce_states) {
 #endif
 #if JAPARI
     for (uint16_t j = BATCH_SIZE; j < buffer_size; j += BATCH_SIZE + 1) {
-        buffer[j] = (state_offset[j] > 0) ? 1 : -1;
+        buffer[j] = (state_offsets[j] > 0) ? 1 : -1;
     }
 #endif
 }
