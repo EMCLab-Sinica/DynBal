@@ -49,25 +49,12 @@ void my_add_q15(const int16_t *pSrcA, const int16_t *pSrcB, int16_t *pDst, uint3
 }
 
 void my_fill_q15(int16_t value, int16_t *pDst, uint32_t blockSize) {
-    if (!blockSize) {
-        return;
+    // XXX: not using LEA/SIMD here as pDst may not be aligned
+    int16_t* pEnd = pDst + blockSize;
+    while (pDst < pEnd) {
+        *pDst = value;
+        pDst++;
     }
-
-    check_buffer_address(pDst, blockSize);
-#if !USE_ARM_CMSIS
-    uint32_t blockSizeForLEA = blockSize / 2 * 2;
-    if (blockSizeForLEA) {
-        msp_fill_q15_params fill_params;
-        fill_params.length = blockSizeForLEA;
-        fill_params.value = value;
-        my_checkStatus(msp_fill_q15(&fill_params, pDst));
-    }
-    if (blockSize % 2) {
-        pDst[blockSize - 1] = value;
-    }
-#else
-    arm_fill_q15(value, pDst, blockSize);
-#endif
 }
 
 void my_offset_q15(const int16_t *pSrc, int16_t offset, int16_t *pDst, uint32_t blockSize) {
