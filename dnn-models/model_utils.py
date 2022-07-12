@@ -16,7 +16,7 @@ from onnx_utils import (
     dims_from_value_info,
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('intermittent-cnn.model_utils')
 
 @dataclasses.dataclass
 class SlotInfo:

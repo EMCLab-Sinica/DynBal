@@ -18,7 +18,7 @@ import onnxruntime.backend as backend
 import platformdirs
 from torch.utils.data import Dataset, DataLoader
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('intermittent-cnn.utils')
 
 INPLACE_UPDATE_OPS = ['Reshape', 'Softmax', 'Squeeze', 'Unsqueeze']
 OPS_WITH_MERGE = ['Conv', 'Gemm']

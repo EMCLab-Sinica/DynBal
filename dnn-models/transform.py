@@ -43,7 +43,7 @@ from model_utils import (
 )
 
 logging.basicConfig()
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('intermittent-cnn.transform')
 
 """
 Goal: Mapping name-based nodes to integer-based ones.
@@ -161,9 +161,9 @@ intermittent_methodology.add_argument('--japari', action='store_true')
 intermittent_methodology.add_argument('--stateful', action='store_true')
 args = parser.parse_args()
 if args.debug:
-    logging.getLogger().setLevel(logging.DEBUG)
+    logging.getLogger('intermittent-cnn').setLevel(logging.DEBUG)
 else:
-    logging.getLogger().setLevel(logging.INFO)
+    logging.getLogger('intermittent-cnn').setLevel(logging.INFO)
 config = configs[args.config]
 config['total_sample_size'] = np.prod(config['sample_size'])
 if 'gemm_tile_length' not in config:
