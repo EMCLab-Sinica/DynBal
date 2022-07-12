@@ -50,6 +50,8 @@ def find_min_range(onnx_model: onnx.ModelProto, nodes: list, config: dict[str, A
 
     for layer_idx, node in enumerate(nodes):
         if node.op_type in INPLACE_UPDATE_OPS:
+            if node.inputs[0] < N_INPUT:
+                continue
             cur_slot_id = layer_slots[node.inputs[0] - N_INPUT]
             if cur_slot_id is not None:
                 slots[cur_slot_id].user = layer_idx
