@@ -141,8 +141,10 @@ static void handle_node(Model *model, uint16_t node_idx) {
 #if ENABLE_COUNTERS
     MY_ASSERT(counters_cleared());
 #endif
+#ifndef __arm__
     // For some operations (e.g., ConvMerge), scale is determined in the handlers
     my_printf_debug("Output scale = %f" NEWLINE, output->scale.toFloat());
+#endif
 #if STATEFUL
     my_printf_debug("New output state bit=%d" NEWLINE, get_state_bit(model, output->slot));
 #endif
@@ -283,7 +285,11 @@ uint8_t run_cnn_tests(uint16_t n_samples) {
     }
     my_printf("correct=%" PRId32 " ", correct);
     my_printf("total=%" PRId32 " ", total);
+#ifndef __arm__
     my_printf("rate=%f" NEWLINE, 1.0*correct/total);
+#else
+    my_printf(NEWLINE);
+#endif
 
     // Allow only 1% of accuracy drop
     if (N_SAMPLES == N_ALL_SAMPLES && correct < (FP32_ACCURACY - 0.01) * total) {
