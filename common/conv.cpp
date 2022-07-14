@@ -200,8 +200,8 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
                     // XXX: why is this needed? Should already be zero with my_fill_q15 above
                     last_elem = 0;
                 }
+            int16_t bias_val = 0;
             if (conv_params->input_tile_c_index == 0) {
-                int16_t bias_val = 0;
                 if (conv_params->conv_bias) {
                     // convert int16_t to int32_t first as on MSP430, registers are 20 bit while there are only 16 bits when int16_t is converted to uint16_t
                     // If the dividend is negative, the quotient is wrong
@@ -214,12 +214,12 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
                 }
                 stop_cpu_counter();
 #endif
-                last_elem += bias_val;
-                if (conv_params->group == 1) {
-                    filter_tmp[conv_params->filter_offset - 1] = -last_elem;
-                } else {
-                    biases[idx] = last_elem;
-                }
+            }
+            last_elem += bias_val;
+            if (conv_params->group == 1) {
+                filter_tmp[conv_params->filter_offset - 1] = -last_elem;
+            } else {
+                biases[idx] = last_elem;
             }
 
             uint16_t channel = idx;
