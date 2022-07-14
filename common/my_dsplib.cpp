@@ -25,6 +25,7 @@
 #endif
 #endif
 
+#if MY_DEBUG >= MY_DEBUG_NORMAL
 static uint8_t check_buffer_address_with_base(const int16_t* base_addr, uint32_t whole_buffer_size, const int16_t* addr, uint32_t blockSize) {
     uint8_t ret = 1;
     ret &= (addr >= base_addr && addr < base_addr + whole_buffer_size);
@@ -32,6 +33,7 @@ static uint8_t check_buffer_address_with_base(const int16_t* base_addr, uint32_t
     ret &= ((addr - base_addr) % 2 == 0);
     return ret;
 }
+#endif
 
 void check_buffer_address(const int16_t* addr, uint32_t blockSize) {
     MY_ASSERT(check_buffer_address_with_base(lea_buffer, LEA_BUFFER_SIZE, addr, blockSize) ||
@@ -198,6 +200,7 @@ void my_matrix_mpy_q15(uint16_t A_rows, uint16_t A_cols, uint16_t B_rows, uint16
         my_memcpy_to_param(param, offset_in_word, pDst, values_to_preserve * sizeof(int16_t), 0, true);
     }
 #endif
+    (void)status; // Suppress -Wunused-variable when MY_DEBUG == MY_DEBUG_NO_ASSERT
 #endif
 #if ENABLE_COUNTERS
     counters()->macs += A_rows * B_cols * A_cols;
