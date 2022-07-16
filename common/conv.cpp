@@ -44,7 +44,6 @@ typedef struct ConvTaskParams {
     const uint8_t* strides;
     uint16_t input_tile_c_offset;
     uint16_t input_tile_c_index;
-    uint16_t tile_h;
     uint16_t cur_input_tile_c;
     uint16_t cur_filter_tile_c;
     uint16_t n_tiles_c;
@@ -340,7 +339,7 @@ static inline uint16_t load_input_vector(uint32_t src_addr, int16_t* dest_addr, 
     return loaded_len;
 }
 
-static void handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
+static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
     int8_t field_size = (conv_params->kH - 1) / 2;
 
     /* copy input data, row by row */
@@ -365,18 +364,17 @@ static void handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
     stop_cpu_counter();
 #endif
     // TEMP_FILTER_WIDTH additional filters for values before transpose
-    uint16_t inputs_len = MIN_VAL(
-        LEA_BUFFER_SIZE - OUTPUT_LEN - (max_n_filters + TEMP_FILTER_WIDTH) * conv_params->filter_offset,
-        (conv_params->tile_h + 2 * field_size) * conv_params->dest_offset
-    );
+    uint16_t inputs_buffer_end = LEA_BUFFER_SIZE - OUTPUT_LEN - (max_n_filters + TEMP_FILTER_WIDTH) * conv_params->filter_offset;
+    uint16_t tile_h = MIN_VAL(inputs_buffer_end / conv_params->dest_offset - 2 * field_size, conv_params->H);
+    uint16_t inputs_len = (tile_h + 2 * field_size) * conv_params->dest_offset;
     MY_ASSERT(inputs_len < LEA_BUFFER_SIZE); // make sure no overflow occurs in the previous line
 
     dest = lea_buffer;
 
-    int32_t h_start = int16_max(conv_params->input_h,                                                           0             ),
-            h_end =   int16_min(conv_params->input_h+conv_params->tile_h+(conv_params->kH-conv_params->strides[0]), conv_params->H)-1;
+    int32_t h_start = int16_max(conv_params->input_h,                                                  0             ),
+            h_end =   int16_min(conv_params->input_h+tile_h+(conv_params->kH-conv_params->strides[0]), conv_params->H)-1;
 
-    my_printf_debug("Reinitialize input buffer" NEWLINE "inputs_len = %d" NEWLINE, inputs_len);
+    my_printf_debug("Reinitialize input buffer" NEWLINE "tile_h = %d, inputs_len = %d" NEWLINE, tile_h, inputs_len);
 
     my_fill_q15(0, lea_buffer, inputs_len);
 
@@ -460,13 +458,14 @@ static void handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
     // state = 0 as state bits are already removed by my_offset_q15 above
     dump_matrix_debug(lea_buffer, inputs_len, ValueInfo(conv_params->conv_input, nullptr), false);
 
-    int16_t max_input_h = MIN_VAL(conv_params->input_h+conv_params->tile_h-1, conv_params->input_h_last);
+    int16_t max_input_h = MIN_VAL(conv_params->input_h+tile_h-1, conv_params->input_h_last);
     for (int16_t cur_input_h = conv_params->input_h; cur_input_h <= max_input_h; cur_input_h += conv_params->strides[0]) {
         // filter_idx is set to initial_c in handle_conv
         convTask(cur_input_h, conv_params);
         // reset here for further processing
         conv_params->filter_idx = conv_params->filter_tile_index * conv_params->flags->conv.output_tile_c;
     }
+    return tile_h;
 }
 
 void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node) {
@@ -553,8 +552,6 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
                    CHANNEL = conv_filter->dims[1];
 
     ConvTaskParams *conv_params = &conv_params_obj;
-
-    conv_params->tile_h = MIN_VAL(H, DEFAULT_TILE_H * conv_params->strides[0]);
 
     my_printf_debug("n_tiles_c = %d" NEWLINE, conv_params->n_tiles_c);
 
@@ -677,8 +674,8 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 
         while (true) {
             for (; conv_params->input_w <= conv_params->input_w_last; conv_params->input_w += conv_params->strides[1]) {
-                for (; conv_params->input_h <= conv_params->input_h_last; conv_params->input_h += conv_params->tile_h) {
-                    handle_conv_inner_loop(model, conv_params);
+                for (; conv_params->input_h <= conv_params->input_h_last;) {
+                    conv_params->input_h += handle_conv_inner_loop(model, conv_params);
                 }
                 conv_params->input_h = conv_params->input_h_first;
                 report_progress();

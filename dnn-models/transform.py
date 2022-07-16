@@ -73,7 +73,6 @@ class Constants:
     USE_ARM_CMSIS = 0
     CONFIG = None
 
-    DEFAULT_TILE_H = 8
     BATCH_SIZE = 1
     STATEFUL = 0
     HAWAII = 0
