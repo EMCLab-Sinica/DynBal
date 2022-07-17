@@ -20,7 +20,7 @@ def main():
         args.limit = None
 
     config = configs[args.config]
-    model = load_model(config, model_variant=args.model_variant, for_deployment=False)
+    model = load_model(config, model_variant=args.model_variant)
     model_data = config['data_loader'](train=False)
     run_model(model, model_data, args.limit,
               verbose=not args.save_file, save_file=args.save_file)

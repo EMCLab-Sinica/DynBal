@@ -169,7 +169,7 @@ def get_model_ops(onnx_model):
 
     return ops
 
-def load_model(config, model_variant, for_deployment):
+def load_model(config, model_variant):
     model_name = config['onnx_model']
     if model_variant:
         model_name += f'-{model_variant}'
@@ -191,9 +191,6 @@ def load_model(config, model_variant, for_deployment):
 
     dynamic_shape_inference(onnx_model, config['sample_size'])
     onnx.checker.check_model(onnx_model)
-
-    if for_deployment:
-        add_merge_nodes(onnx_model)
 
     return onnx_model
 

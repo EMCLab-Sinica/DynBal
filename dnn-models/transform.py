@@ -21,6 +21,7 @@ from utils import (
     DataLayout,
     INPLACE_UPDATE_OPS,
     THIS_DIR,
+    add_merge_nodes,
     get_attr,
     find_kernel_shape,
     find_initializer,
@@ -177,9 +178,10 @@ model_data = config['data_loader'](train=False)
 images, labels = next(iter(model_data.data_loader(limit=Constants.N_SAMPLES)))
 images = images.numpy()
 
-orig_model = load_model(config, model_variant=args.model_variant, for_deployment=False)
-Constants.FIRST_SAMPLE_OUTPUTS = list(run_model(orig_model, model_data, limit=1, verbose=False)[0])
-Constants.FP32_ACCURACY = run_model(orig_model, model_data, limit=None, verbose=False)
+onnx_model = load_model(config, model_variant=args.model_variant)
+Constants.FIRST_SAMPLE_OUTPUTS = list(run_model(onnx_model, model_data, limit=1, verbose=False)[0])
+Constants.FP32_ACCURACY = run_model(onnx_model, model_data, limit=None, verbose=False)
+add_merge_nodes(onnx_model)
 
 Constants.BATCH_SIZE = args.batch_size
 if args.stateful:
@@ -197,8 +199,6 @@ Constants.INDIRECT_RECOVERY = Constants.STATEFUL | Constants.JAPARI
 if args.target == 'msp432':
     Constants.USE_ARM_CMSIS = 1
 Constants.LEA_BUFFER_SIZE = lea_buffer_size[args.target]
-
-onnx_model = load_model(config, model_variant=args.model_variant, for_deployment=True)
 
 names = {}
 
