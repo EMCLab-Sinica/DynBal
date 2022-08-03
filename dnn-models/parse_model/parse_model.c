@@ -84,6 +84,16 @@ static void handle_tensor(Onnx__TensorProto *tensor) {
             break;
         case ONNX__TENSOR_PROTO__DATA_TYPE__FLOAT:
             printf("type=FLOAT");
+            if (tensor->n_float_data < 16) {
+                printf(", vals=[");
+                for (i = 0; i < tensor->n_float_data; i++) {
+                    printf("%f", tensor->float_data[i]);
+                    if (i != tensor->n_float_data - 1) {
+                        printf(", ");
+                    }
+                }
+                printf("]");
+            }
             break;
         default:
             printf("(Tensor data type %d not implemented)", tensor->data_type);
