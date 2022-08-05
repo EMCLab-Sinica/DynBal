@@ -41,6 +41,7 @@ typedef struct ConvTaskParams {
     uint16_t CHANNEL; // Cannot use C as a variable name here as C is a macro on MSP430 :(
     uint16_t OUTPUT_CHANNEL;
     uint16_t N_FILTERS;
+    uint8_t group;
     const uint8_t* strides;
     uint16_t input_tile_c_offset;
     uint16_t input_tile_c_index;
@@ -81,16 +82,25 @@ static ConvTaskParams conv_params_obj;
 
 int16_t * const matrix_mpy_results = lea_buffer + LEA_BUFFER_SIZE - OUTPUT_LEN;
 
+// for group convolution
+static int16_t biases[OUTPUT_LEN];
+
 #if INDIRECT_RECOVERY
 static void flip_filter_state_bits(ConvTaskParams *conv_params, uint16_t n_filters) {
 #if STATEFUL
-    int16_t *to_flip_state_bits = conv_params->filter_buffer_addr + n_filters * (conv_params->filter_offset - 1);
+    int16_t *to_flip_state_bits = nullptr;
+    if (conv_params->group == 1) {
+        to_flip_state_bits = conv_params->filter_buffer_addr + n_filters * (conv_params->filter_offset - 1);
+    } else {
+        to_flip_state_bits = biases;
+    }
 #if ENABLE_COUNTERS
     counters()->embedded_values += len;
 #endif
     // need negating filter value here as it will be multiplied with _Q15(-1.0), or -32768
+    int8_t state_multiplier = (conv_params->group == 1) ? -1 : 1;
     for (uint16_t idx = BATCH_SIZE - 1; idx < n_filters; idx += BATCH_SIZE) {
-        if (get_value_state_bit(to_flip_state_bits[idx]) != -get_value_state_bit(state_offsets[idx])) {
+        if (get_value_state_bit(to_flip_state_bits[idx]) != state_multiplier * get_value_state_bit(state_offsets[idx])) {
             my_printf_debug("Flipping state bit in filter %d" NEWLINE, idx);
             to_flip_state_bits[idx] += 0x8000;
         }
@@ -149,10 +159,10 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
 
     /* copy filter data */
     if (conv_params->cached_filter_idx != conv_params->filter_idx || conv_params->cached_input_tile_c_offset != conv_params->input_tile_c_offset) {
-        conv_params->filter_buffer_addr = matrix_mpy_results - conv_params->filter_offset * (n_filters + TEMP_FILTER_WIDTH);
+        int16_t *filter_tmp = matrix_mpy_results - (conv_params->filter_offset + 1) / 2 * 2; // before transpose
+        conv_params->filter_buffer_addr = filter_tmp - conv_params->filter_offset * n_filters;
         my_fill_q15(0, conv_params->filter_buffer_addr, conv_params->filter_offset * n_filters);
 
-        int16_t *filter_tmp = matrix_mpy_results - conv_params->filter_offset; // before transpose
         uint16_t fill_length = conv_params->filter_offset;
         my_fill_q15(0, filter_tmp, fill_length);
         uint16_t buffer_size = sizeof(int16_t) * conv_params->cur_filter_tile_c;
@@ -169,6 +179,7 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
                     cur_filter_src_offset += conv_params->CHANNEL;
                 }
             }
+            int16_t last_elem = 0;
 #if STATEFUL
             start_cpu_counter(offsetof(Counters, embedding));
             if (conv_params->conv_input->slot == SLOT_TEST_SET) {
@@ -177,7 +188,7 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
             bool has_state = offset_has_state(cur_output_data_offset + idx);
             if (has_state) {
                 my_printf_debug("Adding state bit for newly loaded filter idx=%d" NEWLINE, idx);
-                filter_tmp[conv_params->filter_offset - 1] = -state_offsets[idx];
+                last_elem = state_offsets[idx];
 #if ENABLE_COUNTERS
                 counters()->embedded_values++;
 #endif
@@ -185,16 +196,16 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
             stop_cpu_counter();
             if (!has_state)
 #endif
-            {
-                // XXX: why is this needed? Should already be zero with my_fill_q15 above
-                filter_tmp[conv_params->filter_offset - 1] = 0;
-            }
+                if (conv_params->group == 1) {
+                    // XXX: why is this needed? Should already be zero with my_fill_q15 above
+                    last_elem = 0;
+                }
             if (conv_params->input_tile_c_index == 0) {
-                // convert int16_t to int32_t first as on MSP430, registers are 20 bit while there are only 16 bits when int16_t is converted to uint16_t
-                // If the dividend is negative, the quotient is wrong
                 int16_t bias_val = 0;
                 if (conv_params->conv_bias) {
-                    bias_val = -static_cast<int32_t>(get_q15_param(conv_params->model, conv_params->conv_bias, conv_params->filter_idx + idx)) / conv_params->conv_input->scale.toFloat();
+                    // convert int16_t to int32_t first as on MSP430, registers are 20 bit while there are only 16 bits when int16_t is converted to uint16_t
+                    // If the dividend is negative, the quotient is wrong
+                    bias_val = static_cast<int32_t>(get_q15_param(conv_params->model, conv_params->conv_bias, conv_params->filter_idx + idx)) / conv_params->conv_input->scale.toFloat();
                 }
 #if STATEFUL
                 start_cpu_counter(offsetof(Counters, embedding));
@@ -203,7 +214,12 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
                 }
                 stop_cpu_counter();
 #endif
-                filter_tmp[conv_params->filter_offset - 1] += bias_val;
+                last_elem += bias_val;
+                if (conv_params->group == 1) {
+                    filter_tmp[conv_params->filter_offset - 1] = -last_elem;
+                } else {
+                    biases[idx] = last_elem;
+                }
             }
 
             uint16_t channel = idx;
@@ -244,17 +260,44 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
 
     int16_t *filter_buffer_addr = conv_params->filter_buffer_addr;
 
-    int16_t *input_buffer_addr = lea_buffer + (cur_input_h-conv_params->input_h) * conv_params->dest_offset;
+    int16_t *input_buffer_addr = lea_buffer + (cur_input_h-conv_params->input_h) * conv_params->dest_offset * conv_params->group;
 
     uint16_t A_rows, A_cols, B_rows, B_cols;
     A_rows = 1;
-    A_cols = B_rows = conv_params->filter_offset;
+    A_cols = conv_params->filter_offset * conv_params->group;
+    B_rows = conv_params->filter_offset;
     B_cols = n_filters;
-    MY_ASSERT(A_rows * B_cols <= OUTPUT_LEN);
     MY_ASSERT(input_buffer_addr + A_rows * A_cols <= filter_buffer_addr);
-    MY_ASSERT(A_rows * B_cols <= OUTPUT_LEN);
-    my_matrix_mpy_q15(A_rows, A_cols, B_rows, B_cols, input_buffer_addr, filter_buffer_addr, matrix_mpy_results,
-                      conv_params->output, cur_output_data_offset, values_to_preserve);
+    if (conv_params->group == 1) {
+        MY_ASSERT(A_rows * B_cols <= OUTPUT_LEN);
+        my_matrix_mpy_q15(A_rows, A_cols, B_rows, B_cols, input_buffer_addr, filter_buffer_addr, matrix_mpy_results,
+                          conv_params->output, cur_output_data_offset, values_to_preserve);
+    } else {
+        MY_ASSERT(B_rows * B_cols <= OUTPUT_LEN);
+        if (n_filters == conv_params->group) {
+            int16_t* cur_matrix_mpy_results = matrix_mpy_results + n_filters;
+            my_vector_mult_q15(input_buffer_addr, filter_buffer_addr, matrix_mpy_results, B_rows * B_cols);
+            for (uint16_t row = 1; row < B_rows; row++) {
+                my_add_q15(matrix_mpy_results, cur_matrix_mpy_results, matrix_mpy_results, conv_params->group);
+                cur_matrix_mpy_results += n_filters;
+            }
+        } else {
+            int16_t *cur_input_buffer_addr = input_buffer_addr + (conv_params->group - n_filters),
+                    *cur_filter_buffer_addr = filter_buffer_addr,
+                    *cur_matrix_mpy_results = matrix_mpy_results;
+            for (uint16_t row = 0; row < B_rows; row++) {
+                my_vector_mult_q15(cur_input_buffer_addr, cur_filter_buffer_addr, cur_matrix_mpy_results, n_filters);
+                if (row) {
+                    my_add_q15(matrix_mpy_results, cur_matrix_mpy_results, matrix_mpy_results, n_filters);
+                }
+                cur_input_buffer_addr += conv_params->group;
+                cur_filter_buffer_addr += n_filters;
+                cur_matrix_mpy_results += n_filters;
+            }
+        }
+        my_add_q15(matrix_mpy_results, biases, matrix_mpy_results, n_filters);
+        my_memcpy_to_param(conv_params->output, cur_output_data_offset, matrix_mpy_results, n_filters * sizeof(int16_t), 0, true);
+    }
 
     /* START dump data */
     my_printf_debug("input_h=%d" NEWLINE, cur_input_h);
@@ -365,8 +408,8 @@ static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params
 #endif
     // TEMP_FILTER_WIDTH additional filters for values before transpose
     uint16_t inputs_buffer_end = LEA_BUFFER_SIZE - OUTPUT_LEN - (max_n_filters + TEMP_FILTER_WIDTH) * conv_params->filter_offset;
-    uint16_t tile_h = MIN_VAL(inputs_buffer_end / conv_params->dest_offset - 2 * field_size, conv_params->H);
-    uint16_t inputs_len = (tile_h + 2 * field_size) * conv_params->dest_offset;
+    uint16_t tile_h = MIN_VAL(inputs_buffer_end / (conv_params->group * conv_params->dest_offset) - 2 * field_size, conv_params->H);
+    uint16_t inputs_len = (tile_h + 2 * field_size) * (conv_params->group * conv_params->dest_offset);
     MY_ASSERT(inputs_len < LEA_BUFFER_SIZE); // make sure no overflow occurs in the previous line
 
     dest = lea_buffer;
@@ -378,7 +421,7 @@ static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params
 
     my_fill_q15(0, lea_buffer, inputs_len);
 
-    dest += (h_start-conv_params->input_h) * conv_params->dest_offset;
+    dest += (h_start-conv_params->input_h) * conv_params->dest_offset * conv_params->group;
 
     my_printf_debug("h_start=%" PRId32 " ", h_start);
     my_printf_debug("h_end=%" PRId32 NEWLINE, h_end);
@@ -396,7 +439,7 @@ static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params
     }
     stop_cpu_counter();
 #endif
-    int16_t input_src_offset = h_start * conv_params->W * cur_input_channel + w_start * cur_input_channel;
+    int16_t input_src_offset = (h_start * conv_params->W + w_start) * cur_input_channel * conv_params->group;
 #if JAPARI
     input_src_offset += conv_params->input_tile_c_offset_with_footprints;
 #else
@@ -406,17 +449,17 @@ static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params
     dump_turning_points_debug(model, conv_params->conv_input);
 #endif
     for (int32_t h = h_start; h <= h_end; h++) {
-        int16_t *dest_addr = dest + (w_start-conv_params->input_w) * im2col_channel_offset;
+        int16_t *dest_addr = dest + (w_start-conv_params->input_w) * im2col_channel_offset * conv_params->group;
 #if STATEFUL
         int16_t *orig_dest_addr = dest_addr;
 #endif
-        uint16_t input_row_len = (w_end - w_start + 1) * cur_input_tile_c;
+        uint16_t input_row_len = (w_end - w_start + 1) * cur_input_tile_c * conv_params->group;
         uint32_t src_addr = input_src_offset;
         if (cur_input_tile_c == cur_input_channel) {
             load_input_vector(src_addr, dest_addr, input_row_len, conv_params);
         } else {
             for (int32_t w = w_start; w <= w_end; w++) {
-                load_input_vector(src_addr, dest_addr, cur_input_tile_c, conv_params);
+                load_input_vector(src_addr, dest_addr, cur_input_tile_c * conv_params->group, conv_params);
                 dest_addr += im2col_channel_offset;
                 src_addr += cur_input_channel;
             }
@@ -445,13 +488,15 @@ static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params
         }
         stop_cpu_counter();
 #endif
-        dest += conv_params->dest_offset;
-        input_src_offset += conv_params->W * cur_input_channel;
+        dest += conv_params->dest_offset * conv_params->group;
+        input_src_offset += conv_params->W * cur_input_channel * conv_params->group;
     }
-    uint16_t bias_multipler_offset = conv_params->dest_offset - 1;
-    while (bias_multipler_offset < inputs_len) {
-        lea_buffer[bias_multipler_offset] = -0x8000; // _Q15(-1.0)
-        bias_multipler_offset += conv_params->dest_offset;
+    if (conv_params->group == 1) {
+        uint16_t bias_multipler_offset = conv_params->dest_offset - 1;
+        while (bias_multipler_offset < inputs_len) {
+            lea_buffer[bias_multipler_offset] = -0x8000; // _Q15(-1.0)
+            bias_multipler_offset += conv_params->dest_offset;
+        }
     }
 
     my_printf_debug("Loaded inputs" NEWLINE);
@@ -471,13 +516,8 @@ static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params
 void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node) {
     const ParameterInfo *conv_input = input[0], *conv_filter = input[1];
 
-#if !JAPARI
-    // skip the check for JAPARI as it is too complex
-    MY_ASSERT(conv_input->dims[1] == conv_filter->dims[1]);
-#endif
-
     /* input: N x C x H x W, filter: M x C x kH x kW */
-    const uint16_t CHANNEL = conv_input->dims[1], H = conv_input->dims[2], W = conv_input->dims[3];
+    const uint16_t CHANNEL = conv_filter->dims[1], H = conv_input->dims[2], W = conv_input->dims[3];
     uint16_t OUTPUT_CHANNEL = conv_filter->dims[0];
 
     ConvTaskParams *conv_params = &conv_params_obj;
@@ -490,6 +530,8 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
 
     conv_params->strides = conv_params->flags->conv.strides;
 
+    conv_params->group = conv_params->flags->conv.group;
+
     const uint8_t* pads = conv_params->flags->conv.pads;
     enum { PAD_H_BEGIN = 0, PAD_W_BEGIN = 1, PAD_H_END = 2, PAD_W_END = 3 };
     conv_params->input_h_first = -pads[PAD_H_BEGIN];
@@ -499,6 +541,12 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
 
     conv_params->OUTPUT_H = (conv_params->input_h_last - conv_params->input_h_first) / conv_params->strides[0] + 1;
     conv_params->OUTPUT_W = (conv_params->input_w_last - conv_params->input_w_first) / conv_params->strides[1] + 1;
+
+#if !JAPARI
+    // skip the check for JAPARI as it is too complex
+    MY_ASSERT(conv_input->dims[1] == conv_filter->dims[1] * conv_params->group);
+    MY_ASSERT(conv_params->group == 1 || conv_params->group == conv_input->dims[1]);
+#endif
 
 #if JAPARI
     start_cpu_counter(offsetof(Counters, stripping));
@@ -641,7 +689,7 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     stop_cpu_counter();
 #endif
 
-    int16_t input_channels = conv_input->dims[1];
+    int16_t input_channels = conv_filter->dims[1];
 #if JAPARI
     start_cpu_counter(offsetof(Counters, stripping));
     if (conv_params->conv_input_has_footprints) {
@@ -659,11 +707,13 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 #endif
         my_printf_debug("cur_input_tile_c = %d" NEWLINE, conv_params->cur_input_tile_c);
         conv_params->dest_offset = conv_params->kW * conv_params->cur_input_tile_c;
-        // +1 for bias
-        conv_params->dest_offset++;
+        if (conv_params->group == 1) {
+            // +1 for bias
+            conv_params->dest_offset++;
+        }
         /* MSP430 LEA requires length to be even */
         conv_params->truncated = (conv_params->dest_offset / 2 * 2 != conv_params->dest_offset);
-        if (conv_params->truncated) {
+        if (conv_params->truncated && conv_params->group == 1) {
             // when CHANNEL * kH * kW is odd, CHANNEL * kW (dest_offset) is
             // also odd, so dummy values are needed between slices to make
             // addresses even.

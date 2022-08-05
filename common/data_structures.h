@@ -6,6 +6,8 @@ struct ConvNodeFlags {
     uint8_t pads[4];
     uint8_t kernel_shape[2];
     uint8_t strides[2];
+    uint8_t group;
+    uint8_t dummy;
 };
 
 struct MaxPoolFlags {
@@ -32,7 +34,7 @@ struct ConcatNodeFlags {
     int8_t axis;
 };
 
-#define NODE_FLAGS_SIZE 12
+#define NODE_FLAGS_SIZE 16
 
 union NodeFlags {
     struct ConvNodeFlags conv;

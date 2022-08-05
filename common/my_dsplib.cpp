@@ -1,4 +1,5 @@
 #include "data.h"
+#include <cstdint>
 
 #if !USE_ARM_CMSIS
 #include <DSPLib.h>
@@ -200,6 +201,16 @@ void my_matrix_mpy_q15(uint16_t A_rows, uint16_t A_cols, uint16_t B_rows, uint16
 #endif
 #if ENABLE_COUNTERS
     counters()->macs += A_rows * B_cols * A_cols;
+#endif
+}
+
+void my_vector_mult_q15(const int16_t *pSrcA, const int16_t *pSrcB, int16_t *pDst, uint32_t blockSize) {
+#if !USE_ARM_CMSIS
+    msp_mpy_q15_params params;
+    params.length = blockSize;
+    msp_mpy_q15(&params, pSrcA, pSrcB, pDst);
+#else
+    arm_mult_q15(pSrcA, pSrcB, pDst, blockSize);
 #endif
 }
 

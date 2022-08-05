@@ -288,6 +288,7 @@ for idx, n in enumerate(nodes):
     if n.op_type == 'Conv':
         conv_param_names.add(n.input[1])
         n.flags.conv.pads = infer_auto_pad(onnx_model, n)
+        n.flags.conv.group = get_attr(n, 'group') or 1
     if n.op_type in ('Conv', 'MaxPool'):
         extra_flags = getattr(n.flags, n.op_type.lower())
         kernel_shape = find_kernel_shape(onnx_model, n)

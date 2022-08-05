@@ -32,7 +32,7 @@ typedef struct Node {
 #endif
 } Node;
 
-static_assert(sizeof(Node) == NODE_NAME_LEN * 2 + 18 + NUM_INPUTS * 2 + HAWAII * 8, "Unexpected size for Node");
+static_assert(sizeof(Node) == NODE_NAME_LEN * 2 + 22 + NUM_INPUTS * 2 + HAWAII * 8, "Unexpected size for Node");
 
 struct Scale {
     int16_t fract;

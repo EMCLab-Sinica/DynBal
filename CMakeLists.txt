@@ -43,6 +43,8 @@ endif ()
 set(ARM_CMSIS_PATH ${CMAKE_CURRENT_SOURCE_DIR}/ARM-CMSIS/CMSIS)
 add_library(arm_cmsis_dsp
     ${ARM_CMSIS_PATH}/DSP/Source/BasicMathFunctions/arm_add_q15.c
+    ${ARM_CMSIS_PATH}/DSP/Source/BasicMathFunctions/arm_dot_prod_q15.c
+    ${ARM_CMSIS_PATH}/DSP/Source/BasicMathFunctions/arm_mult_q15.c
     ${ARM_CMSIS_PATH}/DSP/Source/BasicMathFunctions/arm_offset_q15.c
     ${ARM_CMSIS_PATH}/DSP/Source/BasicMathFunctions/arm_scale_q15.c
     ${ARM_CMSIS_PATH}/DSP/Source/MatrixFunctions/arm_mat_init_q15.c
@@ -69,8 +71,10 @@ add_library(dsplib
     ${DSPLIB_PATH}/source/matrix/msp_matrix_mpy_q15.c
     ${DSPLIB_PATH}/source/vector/msp_add_q15.c
     ${DSPLIB_PATH}/source/vector/msp_offset_q15.c
+    ${DSPLIB_PATH}/source/vector/msp_mac_q15.c
     ${DSPLIB_PATH}/source/vector/msp_max_q15.c
     ${DSPLIB_PATH}/source/vector/msp_min_q15.c
+    ${DSPLIB_PATH}/source/vector/msp_mpy_q15.c
     ${DSPLIB_PATH}/source/vector/msp_scale_q15.c
     ${DSPLIB_PATH}/source/utility/msp_deinterleave_q15.c
     ${DSPLIB_PATH}/source/utility/msp_interleave_q15.c
