@@ -552,16 +552,9 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
     start_cpu_counter(offsetof(Counters, stripping));
     conv_params->force_align_footprints = (OUTPUT_CHANNEL % BATCH_SIZE != 0);
     OUTPUT_CHANNEL = extend_for_footprints(OUTPUT_CHANNEL, conv_params->force_align_footprints);
-    bool need_skipping = has_footprints(conv_input);
-    if (need_skipping) {
-        conv_params->n_tiles_c = CHANNEL / (BATCH_SIZE + 1) * BATCH_SIZE / conv_params->flags->conv.input_tile_c;
-    }
     stop_cpu_counter();
-    if (!need_skipping)
 #endif
-    {
-        conv_params->n_tiles_c = CHANNEL / conv_params->flags->conv.input_tile_c;
-    }
+    conv_params->n_tiles_c = CHANNEL / conv_params->flags->conv.input_tile_c;
 #if STATEFUL
     start_cpu_counter(offsetof(Counters, memory_layout));
     if (conv_params->flags->conv.output_tile_c % BATCH_SIZE) {
@@ -690,13 +683,6 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 #endif
 
     int16_t input_channels = conv_filter->dims[1];
-#if JAPARI
-    start_cpu_counter(offsetof(Counters, stripping));
-    if (conv_params->conv_input_has_footprints) {
-        input_channels = input_channels / (BATCH_SIZE + 1) * BATCH_SIZE;
-    }
-    stop_cpu_counter();
-#endif
     for (; conv_params->input_tile_c_offset < input_channels; conv_params->input_tile_c_offset += conv_params->flags->conv.input_tile_c) {
         conv_params->cur_input_tile_c = MIN_VAL(conv_params->flags->conv.input_tile_c, input_channels - conv_params->input_tile_c_offset);
         conv_params->cur_filter_tile_c = conv_params->cur_input_tile_c;
