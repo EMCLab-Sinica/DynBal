@@ -135,7 +135,7 @@ class ONNXNodeWrapper:
         self.orig_node = orig_node
         self.max_output_id = 0
         self.flags = ffi.new('union NodeFlags*')
-        self.name = orig_node.name or orig_node.op_type
+        self.name = orig_node.name or orig_node.output[0] or orig_node.op_type
         self.inputs = []
 
     def __getattr__(self, name):

@@ -88,11 +88,11 @@ int main(int argc, char* argv[]) {
                 shutdown_counter = atol(optarg);
                 break;
             case 's':
-#ifdef USE_PROTOBUF
+#if defined(USE_PROTOBUF) && MY_DEBUG >= MY_DEBUG_LAYERS
                 out_file.open(optarg);
                 break;
 #else
-                my_printf("Cannot save outputs as protobuf support is not compiled." NEWLINE);
+                my_printf("Cannot save outputs as protobuf support is not compiled or debug is not enabled." NEWLINE);
                 return 1;
 #endif
             default:

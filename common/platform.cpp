@@ -28,7 +28,7 @@ static uint32_t intermediate_values_offset(uint8_t slot_id) {
     return INTERMEDIATE_VALUES_OFFSET + slot_id * INTERMEDIATE_VALUES_SIZE;
 }
 
-static uint32_t intermediate_parameters_info_addr(uint8_t i) {
+static uint32_t intermediate_parameters_info_addr(uint16_t i) {
     return INTERMEDIATE_PARAMETERS_INFO_OFFSET + i * sizeof(ParameterInfo);
 }
 
@@ -92,7 +92,7 @@ void read_from_samples(void *dest, uint16_t offset_in_word, size_t n) {
     read_from_nvm(dest, SAMPLES_OFFSET + (sample_idx % PLAT_LABELS_DATA_LEN) * 2*TOTAL_SAMPLE_SIZE + offset_in_word * sizeof(int16_t), n);
 }
 
-ParameterInfo* get_intermediate_parameter_info(uint8_t i) {
+ParameterInfo* get_intermediate_parameter_info(uint16_t i) {
 #if ENABLE_COUNTERS
     if (counters_enabled) {
         counters()->nvm_read_model += sizeof(ParameterInfo);
@@ -107,7 +107,7 @@ ParameterInfo* get_intermediate_parameter_info(uint8_t i) {
     return dst;
 }
 
-void commit_intermediate_parameter_info(uint8_t i) {
+void commit_intermediate_parameter_info(uint16_t i) {
 #if ENABLE_COUNTERS
     if (counters_enabled) {
         counters()->nvm_write_model += sizeof(ParameterInfo);

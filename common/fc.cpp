@@ -47,7 +47,7 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
             output_len = output->dims[0] * output->dims[1];
 
     int16_t *buffer_a = lea_buffer,
-            *buffer_temp = buffer_a + A_len;
+            *buffer_temp = buffer_a + (A_len + 1) / 2 * 2; // guarantee even addresses, making check_buffer_address happy
 #if JAPARI
     start_cpu_counter(offsetof(Counters, embedding));
     buffer_temp += 2;
