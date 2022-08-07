@@ -330,5 +330,7 @@ bool Scale::operator!=(const Scale& other) const {
 }
 
 float Scale::toFloat() const {
-    return 1.0f*fract * (1<<shift) / 32768;
+    // use static_cast<int32_t>(1)<<shift instead of 1<<shift, otherwise
+    // 1 is interpreted as int16_t on MSP430 and overflow occurs for shift >= 16
+    return 1.0f*fract * (static_cast<int32_t>(1)<<shift) / 32768;
 }
