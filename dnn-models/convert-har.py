@@ -34,13 +34,13 @@ def main():
 
     replace_placeholder_with_constant(graph_def, 'keep', np.array(1.0, dtype=np.float32))
 
-    # Not using newer tf2onnx.convert.from_graph_def() API as that seems not including steps
-    # on recognizing the dropout structure
+    # Not using newer tf2onnx.convert.from_graph_def() API as that seems to fail during
+    # recognizing the dropout structure due to extra Identity ops
     with tf.Graph().as_default() as tf_graph:
         tf.import_graph_def(graph_def, name='')
 
         onnx_graph = tf2onnx.tfonnx.process_tf_graph(
-            tf_graph, input_names=['inputs:0'], output_names=['dense/BiasAdd:0'])
+            tf_graph, input_names=['inputs:0'], output_names=['dense/BiasAdd:0'], opset=9)
 
     # Eliminate the Cast node
     onnx_graph = tf2onnx.optimizer.optimize_graph(onnx_graph)
