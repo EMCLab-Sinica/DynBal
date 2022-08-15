@@ -167,18 +167,37 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
 
         uint16_t fill_length = conv_params->filter_offset;
         my_fill_q15(0, filter_tmp, fill_length);
-        uint16_t buffer_size = sizeof(int16_t) * conv_params->cur_filter_tile_c;
         uint16_t filter_len = conv_params->kH * conv_params->kW * conv_params->CHANNEL;
         for (uint16_t idx = 0; idx < cur_output_tile_c; idx++) {
             uint16_t filter_src_offset = (conv_params->filter_idx + idx) * filter_len;
             my_printf_debug("Copying filter %d" NEWLINE, conv_params->filter_idx + idx);
-            for (uint16_t h = 0; h < conv_params->kH; h++) {
-                int16_t *filter_dest_ptr = filter_tmp + h * conv_params->dest_offset;
-                uint16_t cur_filter_src_offset = filter_src_offset + h * conv_params->kW * conv_params->CHANNEL + conv_params->input_tile_c_offset;
-                for (uint16_t w = 0; w < conv_params->kW; w++) {
-                    my_memcpy_from_param(conv_params->model, filter_dest_ptr, conv_params->conv_filter, cur_filter_src_offset, buffer_size);
-                    filter_dest_ptr += conv_params->cur_filter_tile_c;
-                    cur_filter_src_offset += conv_params->CHANNEL;
+            if (conv_params->cur_filter_tile_c == conv_params->CHANNEL && conv_params->kW * conv_params->CHANNEL == conv_params->dest_offset) {
+                uint16_t cur_filter_src_offset = filter_src_offset + conv_params->input_tile_c_offset;
+                uint16_t buffer_size = conv_params->cur_filter_tile_c * conv_params->kH * conv_params->kW;
+                my_memcpy_from_param(conv_params->model, filter_tmp, conv_params->conv_filter, cur_filter_src_offset, sizeof(int16_t) * buffer_size);
+                my_printf_debug("[%d, %d) => lea_buffer + [%ld, %ld)" NEWLINE,
+                                cur_filter_src_offset, cur_filter_src_offset + buffer_size,
+                                filter_tmp - lea_buffer, filter_tmp + buffer_size - lea_buffer);
+            } else {
+                for (uint16_t h = 0; h < conv_params->kH; h++) {
+                    int16_t *filter_dest_ptr = filter_tmp + h * conv_params->dest_offset;
+                    uint16_t cur_filter_src_offset = filter_src_offset + h * conv_params->kW * conv_params->CHANNEL + conv_params->input_tile_c_offset;
+                    if (conv_params->cur_filter_tile_c == conv_params->CHANNEL) {
+                        uint16_t buffer_size = conv_params->cur_filter_tile_c * conv_params->kW;
+                        my_printf_debug("[%d, %d) => lea_buffer + [%ld, %ld)" NEWLINE,
+                                        cur_filter_src_offset, cur_filter_src_offset + buffer_size,
+                                        filter_dest_ptr - lea_buffer, filter_dest_ptr + buffer_size - lea_buffer);
+                        my_memcpy_from_param(conv_params->model, filter_dest_ptr, conv_params->conv_filter, cur_filter_src_offset, sizeof(int16_t) * buffer_size);
+                    } else {
+                        for (uint16_t w = 0; w < conv_params->kW; w++) {
+                            my_printf_debug("[%d, %d) => lea_buffer + [%ld, %ld)" NEWLINE,
+                                            cur_filter_src_offset, cur_filter_src_offset + conv_params->cur_filter_tile_c,
+                                            filter_dest_ptr - lea_buffer, filter_dest_ptr + conv_params->cur_filter_tile_c - lea_buffer);
+                            my_memcpy_from_param(conv_params->model, filter_dest_ptr, conv_params->conv_filter, cur_filter_src_offset, sizeof(int16_t) * conv_params->cur_filter_tile_c);
+                            filter_dest_ptr += conv_params->cur_filter_tile_c;
+                            cur_filter_src_offset += conv_params->CHANNEL;
+                        }
+                    }
                 }
             }
             int16_t last_elem = 0;
@@ -317,6 +336,10 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
     my_printf_debug("filter_buffer_addr = lea_buffer + LEA_BUFFER_SIZE - %d" NEWLINE, static_cast<int>(lea_buffer + LEA_BUFFER_SIZE - filter_buffer_addr));
     my_printf_debug("filter" NEWLINE);
     dump_matrix_debug(filter_buffer_addr, B_rows, B_cols, ValueInfo(conv_params->conv_filter, nullptr), false);
+    if (conv_params->group != 1) {
+        my_printf_debug("biases" NEWLINE);
+        dump_matrix_debug(biases, 1, n_filters, ValueInfo(conv_params->conv_filter, nullptr), false);
+    }
 
     my_printf_debug("matrix_mpy_results" NEWLINE);
     dump_matrix_debug(matrix_mpy_results, A_rows, B_cols, ValueInfo(conv_params->output));
@@ -335,8 +358,8 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
 }
 
 static inline uint16_t load_input_vector(uint32_t src_addr, int16_t* dest_addr, uint16_t len, const ConvTaskParams* conv_params) {
-    my_printf_debug("Load %d IFM values from range [%d, %d) ",
-                    len, src_addr, static_cast<int>(src_addr + len));
+    my_printf_debug("Load %d IFM values [%d, %d) => lea_buffer + [%ld, %ld) ",
+                    len, src_addr, static_cast<int>(src_addr + len), dest_addr - lea_buffer, dest_addr + len - lea_buffer);
     int16_t* memcpy_dest_addr = nullptr;
     uint16_t loaded_len = 0;
 
@@ -443,6 +466,24 @@ static void load_ifm_tile_row(Model* model, const ConvTaskParams* conv_params, i
     }
     uint16_t input_row_len = (w_end - w_start + 1) * cur_input_tile_c * conv_params->group;
 
+    if (input_src_vertical_offset == conv_params->dest_offset * conv_params->group) {
+        // XXX: make them compatible
+        MY_ASSERT(!ON_DEMAN_TILE_LOADING);
+        int16_t *dest_addr = dest + (w_start-conv_params->input_w) * im2col_channel_offset * conv_params->group;
+        uint16_t input_tile_len = (h_end-h_start+1)*input_row_len;
+        load_input_vector(input_src_offset, dest_addr, input_tile_len, conv_params);
+#if STATEFUL
+        start_cpu_counter(offsetof(Counters, stripping));
+        if (conv_params->conv_input->slot != SLOT_TEST_SET) {
+            MY_ASSERT(cur_input_tile_c % BATCH_SIZE == 0);
+            for (int16_t *dest_ptr = dest_addr + BATCH_SIZE - 1; dest_ptr < dest_addr + input_tile_len; dest_ptr += BATCH_SIZE) {
+                strip_state(dest_ptr);
+            }
+        }
+        stop_cpu_counter();
+#endif
+    } else {
+
     for (int32_t h = h_start; h <= h_end; h++) {
         int16_t *dest_addr = dest + (w_start-conv_params->input_w) * im2col_channel_offset * conv_params->group;
 #if STATEFUL
@@ -488,6 +529,8 @@ static void load_ifm_tile_row(Model* model, const ConvTaskParams* conv_params, i
 #endif
         dest += conv_params->dest_offset * conv_params->group;
         input_src_offset += input_src_vertical_offset;
+    }
+
     }
 }
 
@@ -586,7 +629,7 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
     OUTPUT_CHANNEL = extend_for_footprints(OUTPUT_CHANNEL, conv_params->force_align_footprints);
     stop_cpu_counter();
 #endif
-    conv_params->n_tiles_c = CHANNEL / conv_params->flags->conv.input_tile_c;
+    conv_params->n_tiles_c = (CHANNEL + conv_params->flags->conv.input_tile_c - 1) / conv_params->flags->conv.input_tile_c;
 #if STATEFUL
     start_cpu_counter(offsetof(Counters, memory_layout));
     if (conv_params->flags->conv.output_tile_c % BATCH_SIZE) {
