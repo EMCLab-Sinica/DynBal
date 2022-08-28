@@ -385,21 +385,29 @@ void handle_globalaveragepool(Model *model, const ParameterInfo *input[], Parame
 
     const ParameterInfo *data = input[0];
 
+    uint32_t first_unfinished_value_offset = 0;
+#if INTERMITTENT
+    start_cpu_counter(offsetof(Counters, progress_seeking));
+    first_unfinished_value_offset = batch_start(job_index_to_offset(output, run_recovery(model, output)));
+    stop_cpu_counter();
+
 #if STATEFUL
     start_cpu_counter(offsetof(Counters, state_query));
     int16_t offset;
     uint16_t next_output_turning_point;
     uint8_t output_turning_point_idx;
     SlotInfo *output_slot_info;
-    find_initial_state_bit(&offset, &output_turning_point_idx, &next_output_turning_point, &output_slot_info, 0 /*TODO: first_unfinished_value_offset*/, model, output);
+    find_initial_state_bit(&offset, &output_turning_point_idx, &next_output_turning_point, &output_slot_info, first_unfinished_value_offset, model, output);
     offset = -offset;
     stop_cpu_counter();
 #endif
 
+#endif
+
     uint16_t CHANNEL = data->dims[1], H = data->dims[2], W = data->dims[3];
     uint16_t len = H * W;
-    uint16_t output_channel = 0;
-    for (uint16_t input_channel = 0; input_channel < CHANNEL; input_channel++) {
+    uint16_t output_channel = first_unfinished_value_offset;
+    for (uint16_t input_channel = first_unfinished_value_offset; input_channel < CHANNEL; input_channel++) {
         int16_t output_val;
 #if JAPARI
         start_cpu_counter(offsetof(Counters, embedding));
@@ -413,9 +421,11 @@ void handle_globalaveragepool(Model *model, const ParameterInfo *input[], Parame
         {
             uint32_t total = 0;
             for (uint16_t h = 0; h < H; h++) {
+                my_printf_debug("Loading an input row");
                 for (uint16_t w = 0; w < W; w++) {
                     // Input is from Conv, which uses NHWC
                     int16_t val = get_q15_param(model, data, h * W * CHANNEL + w * CHANNEL + input_channel);
+                    my_printf_debug(".");
 #if STATEFUL
                     start_cpu_counter(offsetof(Counters, stripping));
                     if (offset_has_state(input_channel)) {
@@ -426,6 +436,7 @@ void handle_globalaveragepool(Model *model, const ParameterInfo *input[], Parame
 #endif
                     total += val;
                 }
+                my_printf_debug(NEWLINE);
             }
             output_val = total / len;
 #if STATEFUL
@@ -441,6 +452,7 @@ void handle_globalaveragepool(Model *model, const ParameterInfo *input[], Parame
 #endif
         }
         put_q15_param(output, output_channel, output_val, false);
+        my_printf_debug("Preserved output feature at offset %d" NEWLINE, output_channel);
         output_channel++;
     }
 
