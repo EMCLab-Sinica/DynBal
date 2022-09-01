@@ -293,13 +293,13 @@ void handle_concat(Model *model, const ParameterInfo *input[], ParameterInfo *ou
                 continue;
             }
             uint16_t to_copy = input_channels - already_copied;
-            already_copied = 0;
 #if INDIRECT_RECOVERY
             start_cpu_counter(offsetof(Counters, state_query));
             fill_state_offsets(output_offset, to_copy, &offset, &output_turning_point_idx, &next_output_turning_point, output_slot_info);
             stop_cpu_counter();
 #endif
             my_memcpy_from_param(model, lea_buffer, inp, hw * input_channels + already_copied, to_copy * sizeof(int16_t));
+            already_copied = 0;
 #if STATEFUL
             for (uint16_t idx = BATCH_SIZE - 1; idx < to_copy; idx += BATCH_SIZE) {
                 strip_state(lea_buffer + idx);
