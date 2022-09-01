@@ -471,6 +471,11 @@ for params in parameters:
                 logger.info('Reorder conv param %s', params.name)
                 params_data = nchw2nhwc(params_data, params.dims)
             used_node = find_node_by_input(onnx_model.graph.node, params.name)
+
+            if used_node.op_type == 'Gemm':
+                params_data = np.reshape(params_data, params.dims)
+                params_data = np.transpose(params_data)
+
             param_scale = find_tensor_annotation(onnx_model, key='Q15_SCLAE_TENSOR', tensor_name=params.name) or config['scale']
             parameters_slot.target.write(to_bytes(_Q15(params_data / param_scale, 'Parameter')))
         elif params.data_type == onnx.TensorProto.INT64:

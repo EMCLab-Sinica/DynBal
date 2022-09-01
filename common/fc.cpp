@@ -34,17 +34,7 @@ void alloc_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
     output->params_len = output_len * upper_gauss(B->dims[0], node->flags.gemm.tile_channel) * sizeof(int16_t);
 }
 
-struct GemmInputChunkHandlerParams {
-    int16_t* buffer;
-    uint16_t buffer_offset;
-};
-
-void GemmInputChunkHandler(uint32_t offset, uint16_t real_chunk_len, int8_t state_bit, void* _params) {
-    GemmInputChunkHandlerParams* params = reinterpret_cast<GemmInputChunkHandlerParams*>(_params);
-    my_printf_debug("GemmInputChunkHandler offset=%d real_chunk_len=%d state_bit=%d" NEWLINE, offset, real_chunk_len, state_bit);
-    int16_t* to_offset = params->buffer + offset - params->buffer_offset;
-    my_offset_q15_batched(to_offset, -state_bit*0x4000, to_offset, real_chunk_len);
-}
+int16_t weights_tmp[512];
 
 void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node) {
     const ParameterInfo *A = input[0], *B = input[1], *matC = input[2];
@@ -126,8 +116,11 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 
 #if STATEFUL
         start_cpu_counter(offsetof(Counters, stripping));
-        GemmInputChunkHandlerParams params{buffer_a, i};
-        iterate_chunks(model, A, i, tile_channels, GemmInputChunkHandler, &params);
+        if (A->slot != SLOT_TEST_SET) {
+            for (int16_t *input_ptr = buffer_a + BATCH_SIZE - 1; input_ptr < buffer_a + tile_channels; input_ptr += BATCH_SIZE) {
+                strip_state(input_ptr);
+            }
+        }
         stop_cpu_counter();
 #endif
         buffer_a[tile_channels] = -0x8000;
@@ -141,10 +134,8 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
         for (; j < B->dims[1]; j += OP_FILTERS) {
             int16_t tile_width;
             // this variable is used only for JAPARI. Don't use [[maybe_unused]] until TI CGT support C++17.
-            bool exact_tile = true;
             if (OP_FILTERS > B->dims[1] - j) {
                 tile_width = B->dims[1] - j;
-                exact_tile = true;
             } else {
                 tile_width = OP_FILTERS;
             }
@@ -158,19 +149,18 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 #endif
             int16_t *filter_ptr = buffer_b;
             my_fill_q15(0, filter_ptr, extended_tile_channels * full_tile_width);
-            for (uint16_t row = 0; row < tile_channels; row++) {
-                my_memcpy_from_param(model, filter_ptr,
-                          B, (i + row) * B->dims[1] + j,
-                          tile_width * sizeof(uint16_t));
+            for (uint16_t row = 0; row < tile_width; row++) {
+                MY_ASSERT(tile_channels <= sizeof(weights_tmp) / sizeof(weights_tmp[0]));
+                my_memcpy_from_param(model, weights_tmp,
+                          B, (j + row) * B->dims[0] + i,
+                          tile_channels * sizeof(uint16_t));
 #if JAPARI
-                start_cpu_counter(offsetof(Counters, embedding));
-                move_weights(filter_ptr, exact_tile, values_to_preserve, tile_width);
-                stop_cpu_counter();
+                my_interleave_q15(weights_tmp, extend_for_footprints(row), full_tile_width, filter_ptr, tile_channels);
 #else
-                (void)exact_tile; // silent a compiler warning
+                my_interleave_q15(weights_tmp, row, full_tile_width, filter_ptr, tile_channels);
 #endif
-                filter_ptr += full_tile_width;
             }
+            filter_ptr += tile_channels * full_tile_width;
 #if JAPARI
             start_cpu_counter(offsetof(Counters, embedding));
             my_fill_q15(0, filter_ptr, 2 * full_tile_width);
