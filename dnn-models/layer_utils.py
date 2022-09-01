@@ -40,7 +40,7 @@ def determine_conv_tile_c(onnx_model: onnx.ModelProto, config: dict[str, Any], C
         # filters (e.g., batch size=1)
         if Constants.JAPARI:
             real_output_tile_c *= 2
-        ret = ((real_output_tile_c + 1) + Constants.TEMP_FILTER_WIDTH) * filter_len
+        ret = ((real_output_tile_c + 1) + 1) * filter_len
         logger.debug('Checking output_tile_c=%d, filter_len=%d, memory usage=%d', output_tile_c, filter_len, ret)
         return ret
 

@@ -67,8 +67,6 @@ class Constants:
     # Match the size of external FRAM
     NVM_SIZE = 512 * 1024
     N_SAMPLES = 20
-    # to make the code clearer; used in Conv
-    TEMP_FILTER_WIDTH = 1
     LEA_BUFFER_SIZE = 0
     ARM_PSTATE_LEN = 8704
     USE_ARM_CMSIS = 0

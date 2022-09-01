@@ -406,8 +406,8 @@ static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params
     max_n_filters *= 2;
     stop_cpu_counter();
 #endif
-    // TEMP_FILTER_WIDTH additional filters for values before transpose
-    uint16_t inputs_buffer_end = LEA_BUFFER_SIZE - OUTPUT_LEN - (max_n_filters + TEMP_FILTER_WIDTH) * conv_params->filter_offset;
+    // 1 additional filters for values before transpose
+    uint16_t inputs_buffer_end = LEA_BUFFER_SIZE - OUTPUT_LEN - (max_n_filters + 1) * conv_params->filter_offset;
     uint16_t tile_h = MIN_VAL(inputs_buffer_end / (conv_params->group * conv_params->dest_offset) - 2 * field_size, conv_params->H);
     uint16_t inputs_len = (tile_h + 2 * field_size) * (conv_params->group * conv_params->dest_offset);
     MY_ASSERT(inputs_len < LEA_BUFFER_SIZE); // make sure no overflow occurs in the previous line
