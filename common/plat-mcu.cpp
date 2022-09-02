@@ -119,11 +119,15 @@ void copy_samples_data(void) {
 #ifdef __MSP430__
 #define GPIO_COUNTER_PORT GPIO_PORT_P8
 #define GPIO_COUNTER_PIN GPIO_PIN0
+#define GPIO_LAYER_COUNTER_PORT GPIO_PORT_P4
+#define GPIO_LAYER_COUNTER_PIN GPIO_PIN7
 #define GPIO_RESET_PORT GPIO_PORT_P5
 #define GPIO_RESET_PIN GPIO_PIN7
 #else
 #define GPIO_COUNTER_PORT GPIO_PORT_P5
 #define GPIO_COUNTER_PIN GPIO_PIN5
+#define GPIO_LAYER_COUNTER_PORT GPIO_PORT_P5
+#define GPIO_LAYER_COUNTER_PIN GPIO_PORT_P4
 #define GPIO_RESET_PORT GPIO_PORT_P2
 #define GPIO_RESET_PIN GPIO_PIN5
 #endif
@@ -133,6 +137,8 @@ void copy_samples_data(void) {
 void IntermittentCNNTest() {
     GPIO_setAsOutputPin(GPIO_COUNTER_PORT, GPIO_COUNTER_PIN);
     GPIO_setOutputLowOnPin(GPIO_COUNTER_PORT, GPIO_COUNTER_PIN);
+    GPIO_setAsOutputPin(GPIO_LAYER_COUNTER_PORT, GPIO_LAYER_COUNTER_PIN);
+    GPIO_setOutputLowOnPin(GPIO_LAYER_COUNTER_PORT, GPIO_LAYER_COUNTER_PIN);
     GPIO_setAsInputPinWithPullUpResistor(GPIO_RESET_PORT, GPIO_RESET_PIN);
 
     GPIO_setAsOutputPin( GPIO_PORT_P1, GPIO_PIN0 );
@@ -187,10 +193,19 @@ void button_pushed(uint16_t button1_status, uint16_t button2_status) {
     my_printf_debug("button1_status=%d button2_status=%d" NEWLINE, button1_status, button2_status);
 }
 
-void notify_model_finished(void) {
-    my_printf("." NEWLINE);
+static void gpio_pulse(uint8_t port, uint16_t pin) {
     // Trigger a short peak so that multiple inferences in long power cycles are correctly recorded
-    GPIO_setOutputHighOnPin(GPIO_COUNTER_PORT, GPIO_COUNTER_PIN);
+    GPIO_setOutputHighOnPin(port, pin);
     our_delay_cycles(5E-3 * getFrequency(FreqLevel));
     GPIO_setOutputLowOnPin(GPIO_COUNTER_PORT, GPIO_COUNTER_PIN);
+}
+
+void notify_layer_finished(void) {
+    my_printf("L" NEWLINE);
+    gpio_pulse(GPIO_LAYER_COUNTER_PORT, GPIO_LAYER_COUNTER_PIN);
+}
+
+void notify_model_finished(void) {
+    my_printf("." NEWLINE);
+    gpio_pulse(GPIO_COUNTER_PORT, GPIO_COUNTER_PIN);
 }

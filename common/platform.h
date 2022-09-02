@@ -45,6 +45,7 @@ Model* get_model(void);
 Model* load_model_from_nvm(void);
 void commit_model(void);
 void first_run(void);
+void notify_layer_finished(void);
 void notify_model_finished(void);
 #if HAWAII
 void write_hawaii_layer_footprint(uint16_t layer_idx, int16_t n_jobs);

@@ -194,6 +194,8 @@ static void run_model(int8_t *ansptr, const ParameterInfo **output_node_ptr) {
 
         commit_model();
 
+        notify_layer_finished();
+
         dump_model_debug(model);
     }
 

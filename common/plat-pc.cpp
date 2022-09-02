@@ -202,6 +202,7 @@ void copy_samples_data(void) {
     }
 }
 
+void notify_layer_finished(void) {}
 void notify_model_finished(void) {}
 
 [[ noreturn ]] void ERROR_OCCURRED(void) {
