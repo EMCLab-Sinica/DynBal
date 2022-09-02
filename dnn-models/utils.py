@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import enum
 import itertools
 import logging
@@ -6,7 +8,7 @@ import pathlib
 import sys
 import tarfile
 import zipfile
-from typing import Callable, Dict, Iterable, List, NamedTuple, Optional
+from typing import Callable, Iterable, NamedTuple, Optional
 from urllib.request import urlretrieve
 
 import filelock
@@ -98,13 +100,13 @@ def find_tensor_value_info(onnx_model: onnx.ModelProto, name: str) -> onnx.Value
             return value_info
     raise ValueError(f'No value_info found for {name}')
 
-def find_node_by_output(nodes: List[onnx.NodeProto], output_name: str) -> onnx.NodeProto:
+def find_node_by_output(nodes: list[onnx.NodeProto], output_name: str) -> onnx.NodeProto:
     for node in nodes:
         for output in node.output:
             if output == output_name:
                 return node
 
-def find_node_by_input(nodes: List[onnx.NodeProto], input_name: str) -> onnx.NodeProto:
+def find_node_by_input(nodes: list[onnx.NodeProto], input_name: str) -> onnx.NodeProto:
     for node in nodes:
         for input_ in node.input:
             if input_ == input_name:
@@ -404,7 +406,7 @@ def run_model(model, model_data, limit, verbose=True, save_file=None):
             print(f'correct={correct} total={total} rate={accuracy}')
         return accuracy
 
-def remap_inputs(model: onnx.ModelProto, input_mapping: Dict[str, str]):
+def remap_inputs(model: onnx.ModelProto, input_mapping: dict[str, str]):
     new_inputs = list(input_mapping.values())
     for new_input in new_inputs:
         model.graph.input.append(onnx.ValueInfoProto(name=new_input))
