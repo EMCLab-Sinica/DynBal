@@ -16,7 +16,11 @@ import onnx.helper
 import onnx.numpy_helper
 import numpy as np
 
-from configs import configs
+from configs import (
+    configs,
+    lea_buffer_size,
+    ARM_PSTATE_LEN,
+)
 from utils import (
     DataLayout,
     INPLACE_UPDATE_OPS,
@@ -68,7 +72,7 @@ class Constants:
     NVM_SIZE = 512 * 1024
     N_SAMPLES = 20
     LEA_BUFFER_SIZE = 0
-    ARM_PSTATE_LEN = 8704
+    ARM_PSTATE_LEN = ARM_PSTATE_LEN
     USE_ARM_CMSIS = 0
     CONFIG = None
 
@@ -137,13 +141,6 @@ class ONNXNodeWrapper:
 
 def get_prev_node(n):
     return nodes[names[n.input[0]] - Constants.N_INPUT]
-
-lea_buffer_size = {
-    # (4096 - 0x138 (LEASTACK) - 2 * 8 (MSP_LEA_MAC_PARAMS)) / sizeof(int16_t)
-    'msp430': 1884,
-    # determined by trial and error
-    'msp432': 18000,
-}
 
 parser = argparse.ArgumentParser()
 parser.add_argument('config', choices=configs.keys())
@@ -325,9 +322,9 @@ for idx, n in enumerate(nodes):
 max_output_tile_size = 0
 for n in nodes:
     if n.op_type == 'Conv':
-        max_output_tile_size = max(max_output_tile_size, determine_conv_tile_c(onnx_model, config, Constants, n))
+        max_output_tile_size = max(max_output_tile_size, determine_conv_tile_c(onnx_model, config, Constants.JAPARI, args.target, n))
     if n.op_type == 'Gemm':
-        max_output_tile_size = max(max_output_tile_size, determine_gemm_tile_sizes(onnx_model, config, Constants, n))
+        max_output_tile_size = max(max_output_tile_size, determine_gemm_tile_sizes(onnx_model, config, Constants.BATCH_SIZE, args.target, n))
     n.inputs = [names[i] for i in n.input]
 
 for idx, node in enumerate(nodes):
