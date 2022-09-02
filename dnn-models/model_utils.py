@@ -7,11 +7,13 @@ from typing import Any
 
 import numpy as np
 import onnx
+import onnxoptimizer
 
 from utils import (
     INPLACE_UPDATE_OPS,
     OPS_WITH_MERGE,
     find_tensor_value_info,
+    find_node_by_input,
     find_node_by_output,
 )
 from onnx_utils import (
@@ -95,3 +97,18 @@ def find_min_range(onnx_model: onnx.ModelProto, nodes: list, config: dict[str, A
             min_range = min(min_range, sizes[idx+1] - sizes[idx])
 
     return min_range
+
+def remove_tensorflow_input_transpose(onnx_model: onnx.ModelProto):
+    # Make input NCHW
+    graph = onnx_model.graph
+    input_transpose_node = find_node_by_input(nodes=graph.node, input_name=graph.input[0].name)
+    node_after_transpose = find_node_by_input(nodes=graph.node, input_name=input_transpose_node.output[0])
+    node_after_transpose.input[0] = graph.input[0].name
+    input_dims = graph.input[0].type.tensor_type.shape.dim
+    # Swap C and W
+    input_dims[3].dim_value, input_dims[1].dim_value = input_dims[1].dim_value, input_dims[3].dim_value
+
+    # Remove the now unused Transpose node
+    onnx_model = onnxoptimizer.optimize(onnx_model, ['eliminate_deadend'])
+
+    return onnx_model

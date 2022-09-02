@@ -30,6 +30,18 @@ configs = {
         'sample_size': [3, 32, 32],
         'op_filters': 2,
     },
+    'cifar10-cnn': {
+        'onnx_model': 'cifar10-cnn',
+        'scale': 2,
+        'input_scale': 10,
+        'num_slots': 2,
+        # 1st conv output = (30*30*32)*sizeof(int16_t)
+        'intermediate_values_size': 57600,
+        'data_loader': load_data_cifar10,
+        'n_all_samples': 10000,
+        'sample_size': [3, 32, 32],
+        'op_filters': 2,
+    },
     'kws': {
         'onnx_model': 'KWS-DNN_S',
         'scale': 1,

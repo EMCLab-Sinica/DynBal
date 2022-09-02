@@ -178,9 +178,10 @@ def load_model(config, model_variant):
     # https://github.com/onnx/onnx/blob/master/docs/PythonAPIOverview.md
     onnx_model = onnx.load_model(THIS_DIR / f'{model_name}.onnx')
 
-    # onnxoptimizer requires known dimensions, so set the batch size=1.
-    # The batch size will be changed to a variable after dynamic_shape_inference, anyway.
+    # onnxoptimizer requires known dimensions, so do shape inference and set the batch size=1.
+    # The batch size will be changed to a variable after another dynamic_shape_inference.
     # https://github.com/onnx/optimizer/blob/v0.2.6/onnxoptimizer/passes/fuse_matmul_add_bias_into_gemm.h#L60
+    dynamic_shape_inference(onnx_model, config['sample_size'])
     change_batch_size(onnx_model)
 
     # https://zhuanlan.zhihu.com/p/41255090

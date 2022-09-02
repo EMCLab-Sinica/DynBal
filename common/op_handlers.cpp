@@ -341,6 +341,9 @@ void handle_softmax(Model*, const ParameterInfo*[], ParameterInfo*, const Node*)
     // Just let run_model determine the max value
 }
 
+void alloc_transpose(struct Model *model, const struct ParameterInfo **input, struct ParameterInfo *output, const struct Node *node) {
+}
+
 void handle_transpose(Model*, const ParameterInfo *input[], ParameterInfo *output, const Node*) {
     my_printf_debug("Transpose!" NEWLINE);
 
