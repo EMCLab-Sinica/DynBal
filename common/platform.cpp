@@ -10,7 +10,7 @@
 #include "intermittent-cnn.h" // for sample_idx
 
 // put offset checks here as extra headers are used
-static_assert(NODES_OFFSET > SAMPLES_OFFSET + SAMPLES_DATA_LEN, "Incorrect NVM layout");
+static_assert(NODES_OFFSET > PARAMETERS_OFFSET + PARAMETERS_DATA_LEN, "Incorrect NVM layout");
 
 Model model_vm;
 
@@ -179,7 +179,7 @@ void commit_model(void) {
 void first_run(void) {
     my_printf_debug("First run, resetting everything..." NEWLINE);
     my_erase();
-    copy_samples_data();
+    copy_data_to_nvm();
     reset_counters();
 
     write_to_nvm_segmented(intermediate_parameters_info_data, intermediate_parameters_info_addr(0),

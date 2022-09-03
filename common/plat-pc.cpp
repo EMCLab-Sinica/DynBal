@@ -187,7 +187,7 @@ void my_erase() {
     memset(nvm, 0, NVM_SIZE);
 }
 
-void copy_samples_data(void) {
+void copy_data_to_nvm(void) {
     std::ifstream samples_file("samples.bin", std::ios::binary);
     MY_ASSERT(samples_file.good(), "Failed to open samples.bin");
     const uint16_t samples_buflen = 1024;

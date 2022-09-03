@@ -83,7 +83,7 @@ void my_memcpy(void* dest, const void* src, size_t n) {
 
 void my_memcpy_from_parameters(void *dest, const ParameterInfo *param, uint32_t offset_in_bytes, size_t n) {
     MY_ASSERT(offset_in_bytes + n <= PARAMETERS_DATA_LEN);
-    my_memcpy(dest, parameters_data + param->params_offset + offset_in_bytes, n);
+    read_from_nvm(dest, PARAMETERS_OFFSET + param->params_offset + offset_in_bytes, n);
 }
 
 void read_from_nvm(void* vm_buffer, uint32_t nvm_offset, size_t n) {
@@ -108,8 +108,9 @@ void my_erase() {
     eraseFRAM2(0x00);
 }
 
-void copy_samples_data(void) {
+void copy_data_to_nvm(void) {
     write_to_nvm_segmented(samples_data, SAMPLES_OFFSET, SAMPLES_DATA_LEN);
+    write_to_nvm_segmented(parameters_data, PARAMETERS_OFFSET, PARAMETERS_DATA_LEN);
 }
 
 [[ noreturn ]] void ERROR_OCCURRED(void) {
