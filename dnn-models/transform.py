@@ -20,6 +20,7 @@ from configs import (
     configs,
     lea_buffer_size,
     ARM_PSTATE_LEN,
+    OUTPUT_LEN,
 )
 from utils import (
     DataLayout,
@@ -73,6 +74,7 @@ class Constants:
     N_SAMPLES = 20
     LEA_BUFFER_SIZE = 0
     ARM_PSTATE_LEN = ARM_PSTATE_LEN
+    OUTPUT_LEN = OUTPUT_LEN
     USE_ARM_CMSIS = 0
     CONFIG = None
 

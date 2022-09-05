@@ -4,9 +4,6 @@
 #include "data.h"
 #include "platform.h"
 
-// TODO: make these adjustable on runtime
-#define OUTPUT_LEN 256
-
 struct Model;
 struct ParameterInfo;
 struct SlotInfo;

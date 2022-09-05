@@ -12,6 +12,7 @@ from utils import (
 )
 from configs import (
     ARM_PSTATE_LEN,
+    OUTPUT_LEN,
     lea_buffer_size,
 )
 
@@ -53,9 +54,9 @@ def determine_conv_tile_c(onnx_model: onnx.ModelProto, config: dict[str, Any], i
     while True:
         input_tile_too_large = False
         # inner +1 for biases
-        filter_len = ((node_flags.input_tile_c * kW + 1) + 1) // 2 * 2 * 2 * kH
+        filter_len = ((node_flags.input_tile_c * kW + 1) + 1) // 2 * 2 * kH
         output_tile_c = OUTPUT_CHANNEL
-        while get_memory_usage(output_tile_c, filter_len) > lea_buffer_size[target]:
+        while get_memory_usage(output_tile_c, filter_len) > lea_buffer_size[target] - OUTPUT_LEN:
             logger.debug('output_tile_c=%d', output_tile_c)
             output_tile_c //= 2
             if output_tile_c % 2 or output_tile_c < config['op_filters']:

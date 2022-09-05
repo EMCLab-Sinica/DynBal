@@ -5,6 +5,9 @@ from datasets import (
 )
 
 ARM_PSTATE_LEN = 8704
+# Acceleration output buffer size
+# TODO: make these adjustable on runtime
+OUTPUT_LEN = 256
 
 lea_buffer_size = {
     # (4096 - 0x138 (LEASTACK) - 2 * 8 (MSP_LEA_MAC_PARAMS)) / sizeof(int16_t)
