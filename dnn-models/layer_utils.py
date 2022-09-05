@@ -51,12 +51,25 @@ def determine_conv_tile_c(onnx_model: onnx.ModelProto, config: dict[str, Any], i
         logger.debug('Checking output_tile_c=%d, filter_len=%d, memory usage=%d', output_tile_c, filter_len, ret)
         return ret
 
+    def filter_buffer_too_large(output_tile_c, filter_len):
+        if target != 'msp432':
+            return False
+
+        n_filters = output_tile_c
+        if is_japari:
+            n_filters *= 2
+        if filter_len * n_filters > ARM_PSTATE_LEN:
+            logger.debug('Filter buffer size %d exceeds ARM_PSTATE_LEN', filter_len * n_filters)
+            return True
+        else:
+            return False
+
     while True:
         input_tile_too_large = False
         # inner +1 for biases
         filter_len = ((node_flags.input_tile_c * kW + 1) + 1) // 2 * 2 * kH
         output_tile_c = OUTPUT_CHANNEL
-        while get_memory_usage(output_tile_c, filter_len) > lea_buffer_size[target] - OUTPUT_LEN:
+        while get_memory_usage(output_tile_c, filter_len) > lea_buffer_size[target] - OUTPUT_LEN or filter_buffer_too_large(output_tile_c, filter_len):
             logger.debug('output_tile_c=%d', output_tile_c)
             output_tile_c //= 2
             if output_tile_c % 2 or output_tile_c < config['op_filters']:
