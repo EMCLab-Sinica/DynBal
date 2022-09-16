@@ -10,6 +10,8 @@
 #include "my_dsplib.h"
 #include "platform.h"
 
+#define ON_DEMAN_TILE_LOADING 1
+
 /* Better to not use macros
  * https://stackoverflow.com/a/3437484/3786245
  */
@@ -382,9 +384,7 @@ static inline uint16_t load_input_vector(uint32_t src_addr, int16_t* dest_addr, 
     return loaded_len;
 }
 
-static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
-    int8_t field_size = (conv_params->kH - 1) / 2;
-
+static void load_ifm_tile_row(Model* model, const ConvTaskParams* conv_params, int32_t h_start, int32_t h_end) {
     /* copy input data, row by row */
 
     /* int32_t instead of int16_t as TI's compiler cannot handle negative
@@ -400,31 +400,12 @@ static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params
     int32_t w_start = int16_max(0, conv_params->input_w),
             w_end   = int16_min(conv_params->input_w+conv_params->kW-1, conv_params->W-1);
     int16_t *dest;
-    int16_t max_n_filters = conv_params->flags->conv.output_tile_c;
-#if JAPARI
-    start_cpu_counter(offsetof(Counters, memory_layout));
-    max_n_filters *= 2;
-    stop_cpu_counter();
-#endif
-    // 1 additional filters for values before transpose
-    uint16_t inputs_buffer_end = LEA_BUFFER_SIZE - OUTPUT_LEN - (max_n_filters + 1) * conv_params->filter_offset;
-    uint16_t tile_h = MIN_VAL(inputs_buffer_end / (conv_params->group * conv_params->dest_offset) - 2 * field_size, conv_params->H);
-    uint16_t inputs_len = (tile_h + 2 * field_size) * (conv_params->group * conv_params->dest_offset);
-    MY_ASSERT(inputs_len < LEA_BUFFER_SIZE); // make sure no overflow occurs in the previous line
 
     dest = lea_buffer;
-
-    int32_t h_start = int16_max(conv_params->input_h,                                                  0             ),
-            h_end =   int16_min(conv_params->input_h+tile_h+(conv_params->kH-conv_params->strides[0]), conv_params->H)-1;
-
-    my_printf_debug("Reinitialize input buffer" NEWLINE "tile_h = %d, inputs_len = %d" NEWLINE, tile_h, inputs_len);
-
-    my_fill_q15(0, lea_buffer, inputs_len);
 
     dest += (h_start-conv_params->input_h) * conv_params->dest_offset * conv_params->group;
 
     my_printf_debug("h_start=%" PRId32 " ", h_start);
-    my_printf_debug("h_end=%" PRId32 NEWLINE, h_end);
 
     uint16_t cur_input_tile_c = conv_params->cur_input_tile_c;
     uint8_t im2col_channel_offset = cur_input_tile_c;
@@ -448,12 +429,14 @@ static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params
 #if INDIRECT_RECOVERY
     dump_turning_points_debug(model, conv_params->conv_input);
 #endif
+    int16_t input_src_vertical_offset = conv_params->W * cur_input_channel * conv_params->group;
+    uint16_t input_row_len = (w_end - w_start + 1) * cur_input_tile_c * conv_params->group;
+
     for (int32_t h = h_start; h <= h_end; h++) {
         int16_t *dest_addr = dest + (w_start-conv_params->input_w) * im2col_channel_offset * conv_params->group;
 #if STATEFUL
         int16_t *orig_dest_addr = dest_addr;
 #endif
-        uint16_t input_row_len = (w_end - w_start + 1) * cur_input_tile_c * conv_params->group;
         uint32_t src_addr = input_src_offset;
         if (cur_input_tile_c == cur_input_channel) {
             load_input_vector(src_addr, dest_addr, input_row_len, conv_params);
@@ -489,8 +472,28 @@ static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params
         stop_cpu_counter();
 #endif
         dest += conv_params->dest_offset * conv_params->group;
-        input_src_offset += conv_params->W * cur_input_channel * conv_params->group;
+        input_src_offset += input_src_vertical_offset;
     }
+}
+
+static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
+    int8_t field_size = (conv_params->kH - 1) / 2;
+    int16_t max_n_filters = conv_params->flags->conv.output_tile_c;
+#if JAPARI
+    start_cpu_counter(offsetof(Counters, memory_layout));
+    max_n_filters *= 2;
+    stop_cpu_counter();
+#endif
+    // 1 additional filters for values before transpose
+    uint16_t inputs_buffer_end = LEA_BUFFER_SIZE - OUTPUT_LEN - (max_n_filters + 1) * conv_params->filter_offset;
+    uint16_t tile_h = MIN_VAL(inputs_buffer_end / (conv_params->group * conv_params->dest_offset) - 2 * field_size, conv_params->H);
+    uint16_t inputs_len = (tile_h + 2 * field_size) * (conv_params->group * conv_params->dest_offset);
+    MY_ASSERT(inputs_len < LEA_BUFFER_SIZE); // make sure no overflow occurs in the previous line
+
+    my_printf_debug("Reinitialize input buffer" NEWLINE "tile_h = %d, inputs_len = %d" NEWLINE, tile_h, inputs_len);
+
+    my_fill_q15(0, lea_buffer, inputs_len);
+    // XXX: write multipliers on demand?
     if (conv_params->group == 1) {
         uint16_t bias_multipler_offset = conv_params->dest_offset - 1;
         while (bias_multipler_offset < inputs_len) {
@@ -499,12 +502,26 @@ static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params
         }
     }
 
-    my_printf_debug("Loaded inputs" NEWLINE);
-    // state = 0 as state bits are already removed by my_offset_q15 above
-    dump_matrix_debug(lea_buffer, inputs_len, ValueInfo(conv_params->conv_input, nullptr), false);
-
     int16_t max_input_h = MIN_VAL(conv_params->input_h+tile_h-1, conv_params->input_h_last);
+    int32_t max_h_end = int16_min(conv_params->input_h+tile_h+(conv_params->kH-conv_params->strides[0]), conv_params->H)-1;
+    int32_t h_start = int16_max(conv_params->input_h, 0);
+#if ON_DEMAN_TILE_LOADING
+    int32_t h_end = int16_min(h_start + conv_params->kH, conv_params->H) - 1;
+#else
+    int32_t h_end = max_h_end;
+    load_ifm_tile_row(model, conv_params, h_start, h_end);
+#endif
     for (int16_t cur_input_h = conv_params->input_h; cur_input_h <= max_input_h; cur_input_h += conv_params->strides[0]) {
+#if ON_DEMAN_TILE_LOADING
+        load_ifm_tile_row(model, conv_params, h_start, h_end);
+        h_start = h_end + 1;
+        h_end = int16_min(h_end + conv_params->strides[0], max_h_end);
+#endif
+
+        my_printf_debug("Loaded inputs" NEWLINE);
+        // state = 0 as state bits are already removed by my_offset_q15 above
+        dump_matrix_debug(lea_buffer, inputs_len, ValueInfo(conv_params->conv_input, nullptr), false);
+
         // filter_idx is set to initial_c in handle_conv
         convTask(cur_input_h, conv_params);
         // reset here for further processing
