@@ -97,7 +97,7 @@ static void flip_filter_state_bits(ConvTaskParams *conv_params, uint16_t n_filte
         to_flip_state_bits = biases;
     }
 #if ENABLE_COUNTERS
-    counters()->embedded_values += len;
+    counters()->embedded_values += n_filters;
 #endif
     // need negating filter value here as it will be multiplied with _Q15(-1.0), or -32768
     int8_t state_multiplier = (conv_params->group == 1) ? -1 : 1;
