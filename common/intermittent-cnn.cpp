@@ -256,6 +256,9 @@ uint32_t run_recovery(Model *model, ParameterInfo *output) {
 #if JAPARI
     end_job_index /= (BATCH_SIZE + 1);
 #endif
+#if STATEFUL
+    end_job_index /= BATCH_SIZE;
+#endif
     my_printf_debug("end_job_index = %d" NEWLINE, end_job_index);
     uint32_t cur_begin_job_index = 0;
     uint32_t cur_end_job_index = end_job_index;
@@ -268,12 +271,12 @@ uint32_t run_recovery(Model *model, ParameterInfo *output) {
         if (cur_end_job_index - cur_begin_job_index <= 1) {
             if (!value_finished(model, output, cur_begin_job_index)) {
                 first_unfinished_job_index = 0;
-            } else if (!value_finished(model, output, cur_end_job_index)) {
-                first_unfinished_job_index = cur_end_job_index;
             } else if (cur_end_job_index == end_job_index) {
                 // all values finished - power failure just before the state
                 // bit for the output is flipped
                 first_unfinished_job_index = end_job_index;
+            } else if (!value_finished(model, output, cur_end_job_index)) {
+                first_unfinished_job_index = cur_end_job_index;
             } else {
                 MY_ASSERT(false);
             }
