@@ -47,8 +47,8 @@ configs = {
         'scale': 2,
         'input_scale': 16,
         'num_slots': 2,
-        # 3rd conv output = (128*18)*sizeof(int16_t)
-        'intermediate_values_size': 4608,
+        # 3rd conv output = (128*18)*sizeof(int16_t), N/T_n=2 for MSP430/JAPARI/B=1
+        'intermediate_values_size': 9216,
         'data_loader': load_har,
         'n_all_samples': 2947,
         'sample_size': [9, 128],
