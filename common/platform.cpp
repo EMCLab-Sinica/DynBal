@@ -194,7 +194,7 @@ void first_run(void) {
 }
 
 void write_to_nvm_segmented(const uint8_t* vm_buffer, uint32_t nvm_offset, uint32_t total_len, uint16_t segment_size) {
-    for (uint16_t idx = 0; idx < total_len; idx += segment_size) {
+    for (uint32_t idx = 0; idx < total_len; idx += segment_size) {
         write_to_nvm(vm_buffer + idx, nvm_offset + idx, MIN_VAL(total_len - idx, segment_size));
     }
 }
