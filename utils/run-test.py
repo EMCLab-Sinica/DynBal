@@ -28,7 +28,7 @@ def build_and_test(config, suffix, intermittent):
 
     rounds = 100
     power_cycle = 0.01
-    if 'cifar10' in config:
+    if 'cifar10' in config or 'cifar10-cnn' in config:
         rounds=50
         power_cycle = 0.02
     if '--japari' in config:
