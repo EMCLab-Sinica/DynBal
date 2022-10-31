@@ -43,9 +43,14 @@ static void save_model_output_data() {
 }
 #endif
 
+volatile bool exit_called = false;
+
 static void sig_handler(int sig_no) {
     if (sig_no == SIGINT) {
-        exit(2);
+        if (!exit_called) {
+            exit_called = true;
+            exit(2);
+        }
     }
 }
 
