@@ -3,6 +3,7 @@
 #include <cinttypes> // for PRId64
 #include <cstdint>
 #include <memory>
+#include "counters.h"
 #include "my_debug.h"
 #include "cnn_common.h"
 #include "intermittent-cnn.h"
@@ -125,6 +126,7 @@ static void extract_dimensions(const ParameterInfo* cur_param, uint16_t* NUM, ui
 
 void dump_params_nhwc(Model *model, const ParameterInfo *cur_param, const char* layer_name) {
     uint16_t NUM, H, W, CHANNEL;
+    disable_counters();
     extract_dimensions(cur_param, &NUM, &H, &W, &CHANNEL);
     LayerOutput* layer_out = nullptr;
     dump_params_common(model, cur_param, layer_name, &layer_out);
@@ -150,6 +152,7 @@ void dump_params_nhwc(Model *model, const ParameterInfo *cur_param, const char* 
         }
         PRINT_NEWLINE_IF_DATA_NOT_SAVED
     }
+    enable_counters();
 }
 
 void dump_model(Model *model) {

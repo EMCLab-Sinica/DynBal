@@ -51,33 +51,54 @@ void my_memcpy_to_param(ParameterInfo *param, uint16_t offset_in_word, const voi
     MY_ASSERT(param->slot < NUM_SLOTS);
     uint32_t total_offset = param->params_offset + offset_in_word * sizeof(int16_t);
     MY_ASSERT(total_offset + n <= param->params_len);
-    write_to_nvm(src, intermediate_values_offset(param->slot) + total_offset, n, timer_delay);
 #if ENABLE_COUNTERS
     uint32_t n_jobs;
 #if JAPARI
     uint16_t n_footprints = n / (BATCH_SIZE + 1);
     n_jobs = n - n_footprints;
-    counters()->footprint_preservation += n_footprints;
+    counters()->nvm_write_footprints += n_footprints;
+    my_printf_debug("Recorded %u bytes of footprints written to NVM" NEWLINE, n_footprints);
 #else
     n_jobs = n;
-#endif
+#endif // JAPARI
     if (is_linear) {
-        counters()->linear_job_preservation += n_jobs;
+        counters()->nvm_write_linear_jobs += n_jobs;
+        my_printf_debug("Recorded %u bytes of linear jobs written to NVM" NEWLINE, n_jobs);
     } else {
-        counters()->non_linear_job_preservation += n_jobs;
+        counters()->nvm_write_non_linear_jobs += n_jobs;
+        my_printf_debug("Recorded %u bytes of non-linear jobs written to NVM" NEWLINE, n_jobs);
     }
 #endif
+    write_to_nvm(src, intermediate_values_offset(param->slot) + total_offset, n, timer_delay);
 }
 
 void my_memcpy_from_intermediate_values(void *dest, const ParameterInfo *param, uint16_t offset_in_word, size_t n) {
+#if ENABLE_COUNTERS
+    if (counters_enabled) {
+        counters()->nvm_read_job_outputs += n;
+        my_printf_debug("Recorded %lu bytes of job outputs fetched from NVM" NEWLINE, n);
+    }
+#endif
     read_from_nvm(dest, intermediate_values_offset(param->slot) + offset_in_word * sizeof(int16_t), n);
 }
 
 void read_from_samples(void *dest, uint16_t offset_in_word, size_t n) {
+#if ENABLE_COUNTERS
+    if (counters_enabled) {
+        counters()->nvm_read_job_outputs += n;
+        my_printf_debug("Recorded %lu bytes of job outputs fetched from NVM" NEWLINE, n);
+    }
+#endif
     read_from_nvm(dest, SAMPLES_OFFSET + (sample_idx % PLAT_LABELS_DATA_LEN) * 2*TOTAL_SAMPLE_SIZE + offset_in_word * sizeof(int16_t), n);
 }
 
 ParameterInfo* get_intermediate_parameter_info(uint8_t i) {
+#if ENABLE_COUNTERS
+    if (counters_enabled) {
+        counters()->nvm_read_model += sizeof(ParameterInfo);
+        my_printf_debug("Recorded %lu bytes of ParameterInfo fetched from NVM" NEWLINE, sizeof(ParameterInfo));
+    }
+#endif
     ParameterInfo* dst = intermediate_parameters_info_vm + i;
     read_from_nvm(dst, intermediate_parameters_info_addr(i), sizeof(ParameterInfo));
     my_printf_debug("Load intermediate parameter info %d from NVM" NEWLINE, i);
@@ -87,6 +108,12 @@ ParameterInfo* get_intermediate_parameter_info(uint8_t i) {
 }
 
 void commit_intermediate_parameter_info(uint8_t i) {
+#if ENABLE_COUNTERS
+    if (counters_enabled) {
+        counters()->nvm_write_model += sizeof(ParameterInfo);
+        my_printf_debug("Recorded %lu bytes of ParameterInfo written NVM" NEWLINE, sizeof(ParameterInfo));
+    }
+#endif
     const ParameterInfo* src = intermediate_parameters_info_vm + i;
     MY_ASSERT(src->parameter_info_idx == i + N_INPUT);
     write_to_nvm(src, intermediate_parameters_info_addr(i), sizeof(ParameterInfo));
@@ -96,6 +123,9 @@ void commit_intermediate_parameter_info(uint8_t i) {
 template<typename T>
 static uint8_t get_newer_copy_id(uint16_t data_idx) {
     uint8_t version1, version2;
+#if ENABLE_COUNTERS
+    counters()->nvm_read_shadow_data += 2;
+#endif
     read_from_nvm(&version1, nvm_addr<T>(0, data_idx) + offsetof(T, version), sizeof(uint8_t));
     read_from_nvm(&version2, nvm_addr<T>(1, data_idx) + offsetof(T, version), sizeof(uint8_t));
     my_printf_debug("Versions of shadow %s copies for data item %d: %d, %d" NEWLINE, datatype_name<T>(), data_idx, version1, version2);
@@ -130,6 +160,10 @@ T* get_versioned_data(uint16_t data_idx) {
     T *dst = vm_addr<T>(data_idx);
 
     uint8_t newer_copy_id = get_newer_copy_id<T>(data_idx);
+#if ENABLE_COUNTERS
+    counters()->nvm_read_shadow_data += sizeof(T);
+    my_printf_debug("Recorded %lu bytes of shadow data read from NVM" NEWLINE, sizeof(T));
+#endif
     read_from_nvm(dst, nvm_addr<T>(newer_copy_id, data_idx), sizeof(T));
     my_printf_debug("Using %s copy %d, version %d" NEWLINE, datatype_name<T>(), newer_copy_id, dst->version);
     return dst;
@@ -143,6 +177,10 @@ void commit_versioned_data(uint16_t data_idx) {
     T* vm_ptr = vm_addr<T>(data_idx);
     bump_version<T>(vm_ptr);
 
+#if ENABLE_COUNTERS
+    counters()->nvm_write_shadow_data += sizeof(T);
+    my_printf_debug("Recorded %lu bytes of shadow data written to NVM" NEWLINE, sizeof(T));
+#endif
     write_to_nvm(vm_ptr, nvm_addr<T>(older_copy_id, data_idx), sizeof(T));
     my_printf_debug("Committing version %d to %s copy %d" NEWLINE, vm_ptr->version, datatype_name<T>(), older_copy_id);
 }
@@ -178,6 +216,7 @@ void commit_model(void) {
 
 void first_run(void) {
     my_printf_debug("First run, resetting everything..." NEWLINE);
+    disable_counters();
     my_erase();
     copy_data_to_nvm();
     reset_counters();
@@ -191,6 +230,7 @@ void first_run(void) {
     commit_model();
 
     my_printf_debug("Init for " CONFIG "/" METHOD " with batch size=%d" NEWLINE, BATCH_SIZE);
+    enable_counters();
 }
 
 void write_to_nvm_segmented(const uint8_t* vm_buffer, uint32_t nvm_offset, uint32_t total_len, uint16_t segment_size) {

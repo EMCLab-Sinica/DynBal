@@ -25,7 +25,8 @@
 #endif
 
 #if ENABLE_COUNTERS
-DATA_SECTION_NVM Counters counters_data[2][COUNTERS_LEN];
+DATA_SECTION_NVM Counters _counters_data[2][COUNTERS_LEN];
+Counters (*counters_data)[COUNTERS_LEN] = _counters_data;
 DATA_SECTION_NVM uint8_t counters_cur_copy_id = 0;
 DATA_SECTION_NVM uint32_t total_jobs = 0;
 #endif

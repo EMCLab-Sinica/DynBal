@@ -1,8 +1,11 @@
 #include <cinttypes>
+#include <cstdint>
 #include <cstring>
 #include "cnn_common.h"
 #include "counters.h"
 #include "platform.h"
+
+uint8_t counters_enabled = 1;
 
 #if ENABLE_COUNTERS
 uint8_t current_counter = INVALID_POINTER;
@@ -44,8 +47,6 @@ void print_all_counters() {
 #endif
     uint32_t total_dma_bytes = 0, total_macs = 0, total_overhead = 0;
     my_printf(NEWLINE "Power counters:          "); print_counters<&Counters::power_counters>();
-    my_printf(NEWLINE "DMA invocations:         "); print_counters<&Counters::dma_invocations>();
-    my_printf(NEWLINE "DMA bytes:               "); total_dma_bytes = print_counters<&Counters::dma_bytes>();
     my_printf(NEWLINE "MACs:                    "); total_macs = print_counters<&Counters::macs>();
     // state-embedding overheads
     my_printf(NEWLINE "Embeddings:              "); total_overhead += print_counters<&Counters::embedding>();
@@ -60,15 +61,24 @@ void print_all_counters() {
     my_printf(NEWLINE "Progress seeking:        "); total_overhead += print_counters<&Counters::progress_seeking>();
     // misc
     my_printf(NEWLINE "Memory layout:           "); total_overhead += print_counters<&Counters::memory_layout>();
-    my_printf(NEWLINE "Linear job preservation: "); total_overhead += print_counters<&Counters::linear_job_preservation>();
-    my_printf(NEWLINE "Non-linear job preservation: "); total_overhead += print_counters<&Counters::non_linear_job_preservation>();
 #if JAPARI
-    my_printf(NEWLINE "Footprint preservation:  "); total_overhead += print_counters<&Counters::footprint_preservation>();
     my_printf(NEWLINE "Data loading:            "); total_overhead += print_counters<&Counters::data_loading>();
 #endif
 #if STATEFUL
     my_printf(NEWLINE "Embedded values:         "); total_overhead += print_counters<&Counters::embedded_values>();
 #endif
+    my_printf(NEWLINE "DMA invocations:         "); print_counters<&Counters::dma_invocations>();
+    my_printf(NEWLINE "DMA bytes:               "); total_dma_bytes = print_counters<&Counters::dma_bytes>();
+    my_printf(NEWLINE "DMA (VM to VM):          "); print_counters<&Counters::dma_vm_to_vm>();
+    my_printf(NEWLINE "NVM read (job outputs):  "); print_counters<&Counters::nvm_read_job_outputs>();
+    my_printf(NEWLINE "NVM read (parameters):   "); print_counters<&Counters::nvm_read_parameters>();
+    my_printf(NEWLINE "NVM read (shadow data):  "); print_counters<&Counters::nvm_read_shadow_data>();
+    my_printf(NEWLINE "NVM read (model data):   "); print_counters<&Counters::nvm_read_model>();
+    my_printf(NEWLINE "NVM write (L jobs):      "); total_overhead += print_counters<&Counters::nvm_write_linear_jobs>();
+    my_printf(NEWLINE "NVM write (NL jobs):     "); total_overhead += print_counters<&Counters::nvm_write_non_linear_jobs>();
+    my_printf(NEWLINE "NVM write (footprints):  "); total_overhead += print_counters<&Counters::nvm_write_footprints>();
+    my_printf(NEWLINE "NVM write (shadow data): "); print_counters<&Counters::nvm_write_shadow_data>();
+    my_printf(NEWLINE "NVM write (model data):  "); print_counters<&Counters::nvm_write_model>();
 
     my_printf(NEWLINE "Total DMA bytes: %d", total_dma_bytes);
     my_printf(NEWLINE "Total MACs: %d", total_macs);

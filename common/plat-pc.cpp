@@ -32,7 +32,7 @@ static uint32_t shutdown_counter = UINT32_MAX;
 static std::ofstream out_file;
 
 #if ENABLE_COUNTERS
-Counters counters_data[2][COUNTERS_LEN];
+Counters (*counters_data)[COUNTERS_LEN];
 uint8_t counters_cur_copy_id = 0;
 uint32_t total_jobs = 0;
 #endif
@@ -43,12 +43,38 @@ static void save_model_output_data() {
 }
 #endif
 
+static void sig_handler(int sig_no) {
+    if (sig_no == SIGINT) {
+        exit(2);
+    }
+}
+
+static void* map_file(const char* path, size_t len, bool read_only) {
+    int fd = -1;
+    struct stat stat_buf;
+    if (stat(path, &stat_buf) != 0) {
+        if (errno != ENOENT) {
+            perror("Checking file failed");
+            return NULL;
+        }
+        fd = open(path, O_RDWR|O_CREAT, 0600);
+        ftruncate(fd, len);
+    } else {
+        fd = open(path, O_RDWR);
+    }
+    void* ptr = mmap(NULL, len, PROT_READ|PROT_WRITE, read_only ? MAP_PRIVATE : MAP_SHARED, fd, 0);
+    if (ptr == MAP_FAILED) {
+        perror("mmap() failed");
+        return NULL;
+    }
+    return ptr;
+}
+
 int main(int argc, char* argv[]) {
     int ret = 0, opt_ch, read_only = 0, n_samples = 0;
     Model *model;
 
 #ifdef __linux__
-    int nvm_fd = -1;
 
     while((opt_ch = getopt(argc, argv, "frc:s:")) != -1) {
         switch (opt_ch) {
@@ -78,22 +104,14 @@ int main(int argc, char* argv[]) {
         n_samples = atoi(argv[optind]);
     }
 
-    struct stat stat_buf;
-    if (stat("nvm.bin", &stat_buf) != 0) {
-        if (errno != ENOENT) {
-            perror("Checking nvm.bin failed");
-            goto exit;
-        }
-        nvm_fd = open("nvm.bin", O_RDWR|O_CREAT, 0600);
-        ftruncate(nvm_fd, NVM_SIZE);
-    } else {
-        nvm_fd = open("nvm.bin", O_RDWR);
-    }
-    nvm = reinterpret_cast<uint8_t*>(mmap(NULL, NVM_SIZE, PROT_READ|PROT_WRITE, read_only ? MAP_PRIVATE : MAP_SHARED, nvm_fd, 0));
-    if (nvm == MAP_FAILED) {
-        perror("mmap() failed");
-        goto exit;
-    }
+    // make sure exit handlers (ex: `print_all_counters()`) are executed upon SIGINT
+    signal(SIGINT, sig_handler);
+
+    nvm = reinterpret_cast<uint8_t*>(map_file("nvm.bin", NVM_SIZE, read_only));
+#if ENABLE_COUNTERS
+    counters_data = reinterpret_cast<Counters(*)[COUNTERS_LEN]>(map_file("counters.bin", 2*COUNTERS_LEN*sizeof(Counters), false));
+#endif
+
 #else
     (void)read_only; // no simulated NVM other than Linux - silent a compiler warning
     nvm = new uint8_t[NVM_SIZE]();
@@ -119,14 +137,13 @@ int main(int argc, char* argv[]) {
         first_run();
     }
 
+#if ENABLE_COUNTERS
+    std::atexit(print_all_counters);
+#endif
+
     ret = run_cnn_tests(n_samples);
 
-    print_all_counters();
-
-#ifdef __linux__
-exit:
-    close(nvm_fd);
-#else
+#ifndef __linux__
     delete [] nvm;
 #endif
     return ret;
@@ -136,7 +153,7 @@ exit:
 #ifdef __linux__
     if (ptrace(PTRACE_TRACEME, 0, NULL, 0) == -1) {
         // Let the debugger break
-        kill(getpid(), SIGINT);
+        kill(getpid(), SIGTERM);
     }
 #endif
     // give up otherwise
@@ -145,8 +162,11 @@ exit:
 
 void my_memcpy_ex(void* dest, const void* src, size_t n, uint8_t write_to_nvm) {
 #if ENABLE_COUNTERS
-    counters()->dma_invocations++;
-    counters()->dma_bytes += n;
+    if (counters_enabled) {
+        counters()->dma_invocations++;
+        counters()->dma_bytes += n;
+        my_printf_debug("Recorded %lu DMA bytes" NEWLINE, n);
+    }
 #endif
     // Not using memcpy here so that it is more likely that power fails during
     // memcpy, which is the case for external FRAM
@@ -154,7 +174,7 @@ void my_memcpy_ex(void* dest, const void* src, size_t n, uint8_t write_to_nvm) {
     const uint8_t *src_u = reinterpret_cast<const uint8_t*>(src);
     for (size_t idx = 0; idx < n; idx++) {
         dest_u[idx] = src_u[idx];
-        if (write_to_nvm) {
+        if (write_to_nvm && counters_enabled) {
             shutdown_counter--;
             if (!shutdown_counter) {
                 exit_with_status(2);
@@ -164,12 +184,24 @@ void my_memcpy_ex(void* dest, const void* src, size_t n, uint8_t write_to_nvm) {
 }
 
 void my_memcpy(void* dest, const void* src, size_t n) {
+#if ENABLE_COUNTERS
+    if (counters_enabled) {
+        counters()->dma_vm_to_vm += n;
+        my_printf_debug("Recorded %lu bytes copied from VM to VM" NEWLINE, n);
+    }
+#endif
     my_memcpy_ex(dest, src, n, 0);
 }
 
 void my_memcpy_from_parameters(void *dest, const ParameterInfo *param, uint32_t offset_in_bytes, size_t n) {
     MY_ASSERT(offset_in_bytes + n <= PARAMETERS_DATA_LEN);
-    my_memcpy(dest, parameters_data + param->params_offset + offset_in_bytes, n);
+#if ENABLE_COUNTERS
+    if (counters_enabled) {
+        counters()->nvm_read_parameters += n;
+        my_printf_debug("Recorded %lu bytes fetched from parameters" NEWLINE, n);
+    }
+#endif
+    my_memcpy_ex(dest, parameters_data + param->params_offset + offset_in_bytes, n, 0);
 }
 
 void read_from_nvm(void *vm_buffer, uint32_t nvm_offset, size_t n) {

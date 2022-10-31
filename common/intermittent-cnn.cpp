@@ -14,6 +14,7 @@
 static void check_feature_map_states(Model *model, const ParameterInfo* output, uint32_t first_unfinished_job_index, uint32_t len, const char* func) {
 #if MY_DEBUG >= MY_DEBUG_NORMAL
     my_printf_debug("Running check_feature_map_states..." NEWLINE);
+    disable_counters();
 #if 0
     for (uint32_t idx = 0; idx < len; idx++) {
         my_printf_debug("% 6d ", get_q15_param(model, output, idx));
@@ -35,9 +36,10 @@ static void check_feature_map_states(Model *model, const ParameterInfo* output, 
         MY_ASSERT(get_value_state_bit(val) == cur_state_bit,
             "Value %d at job index %d (offset %" PRIu32 ") does not have expected state bit %d" NEWLINE, val, idx, offset, cur_state_bit);
     }
-#endif
+    enable_counters();
+#endif // MY_DEBUG >= MY_DEBUG_NORMAL
 }
-#endif
+#endif // INDIRECT_RECOVERY
 
 #if STATEFUL
 static uint8_t value_finished(Model* model, const ParameterInfo* output, uint32_t job_index) {
