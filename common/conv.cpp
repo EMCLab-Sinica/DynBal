@@ -118,9 +118,13 @@ static void flip_filter_state_bits(ConvTaskParams *conv_params, uint16_t n_filte
 #endif
 
 static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
-    // cur_output_tile_c should be signed, or MAX_VAL below is broken with TI's compiler
     int16_t output_tile_c = conv_params->flags->conv.output_tile_c;
-    int16_t cur_output_tile_c = output_tile_c - conv_params->filter_idx % output_tile_c;
+    int16_t cur_output_tile_c;
+    if (conv_params->filter_idx + output_tile_c >= conv_params->N_FILTERS) {
+        cur_output_tile_c = conv_params->N_FILTERS - conv_params->filter_idx;
+    } else {
+        cur_output_tile_c = output_tile_c - conv_params->filter_idx % output_tile_c;
+    }
     my_printf_debug("cur_output_tile_c = %d" NEWLINE, cur_output_tile_c);
     MY_ASSERT(cur_output_tile_c > 0);
 
@@ -726,22 +730,8 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     first_unfinished_value_offset %= slice_size_input_channel_tiling;
 
     conv_params->filter_tile_index = (first_unfinished_value_offset % conv_params->OUTPUT_CHANNEL) / cur_output_tile_c;
-    conv_params->filter_idx = conv_params->filter_tile_index * conv_params->flags->conv.output_tile_c;
+    conv_params->filter_idx = first_unfinished_value_offset % conv_params->OUTPUT_CHANNEL;
 
-#if STATEFUL
-    start_cpu_counter(offsetof(Counters, memory_layout));
-    uint8_t filter_offset_in_tile = first_unfinished_value_offset % (cur_output_tile_c + conv_params->output_padding);
-    stop_cpu_counter();
-#else
-    uint8_t filter_offset_in_tile = first_unfinished_value_offset % cur_output_tile_c;
-#endif
-
-#if JAPARI
-    start_cpu_counter(offsetof(Counters, embedding));
-    filter_offset_in_tile = filter_offset_in_tile / (BATCH_SIZE + 1) * BATCH_SIZE;
-    stop_cpu_counter();
-#endif
-    conv_params->filter_idx += filter_offset_in_tile;
     first_unfinished_value_offset /= conv_params->OUTPUT_CHANNEL;
 
     conv_params->input_w += first_unfinished_value_offset / conv_params->OUTPUT_H * conv_params->strides[1];

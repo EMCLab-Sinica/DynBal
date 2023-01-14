@@ -206,7 +206,6 @@ uint32_t job_index_to_offset(const ParameterInfo *output, uint16_t job_index) {
 #endif
     output_tile_c = upper_gauss(output_tile_c, BATCH_SIZE) * BATCH_SIZE;
     jobs_in_a_filter_tile = OUTPUT_H * OUTPUT_W * output_tile_c / BATCH_SIZE;
-    jobs_in_an_op = output_tile_c / BATCH_SIZE;
     // TODO: handle cases where the following condition is not met
     MY_ASSERT(output_tile_c % BATCH_SIZE == 0);
 #if JAPARI
@@ -220,6 +219,8 @@ uint32_t job_index_to_offset(const ParameterInfo *output, uint16_t job_index) {
     job_index %= jobs_in_a_filter_tile;
     uint32_t offset = input_tile_c_index * input_tile_len +
                       channel_offset;
+    uint16_t cur_output_tile_c = MIN_VAL(OUTPUT_CHANNEL - channel_offset, output_tile_c);
+    jobs_in_an_op = cur_output_tile_c / BATCH_SIZE;
 
     if (jobs_in_an_op) {
         // an op contains at least a batch
