@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 from typing import Any
 
 import onnx
@@ -87,6 +88,11 @@ def determine_conv_tile_c(onnx_model: onnx.ModelProto, config: dict[str, Any], i
         node_flags.input_tile_c //= 2
         logger.debug('input_tile_c=%d', node_flags.input_tile_c)
     node_flags.output_tile_c = output_tile_c
+
+    reduce_output_ratio = os.getenv('TILE_SIZE_RATIO') or 1
+    node_flags.output_tile_c = round(node_flags.output_tile_c * reduce_output_ratio)
+    node_flags.output_tile_c = max(2, node_flags.output_tile_c // 2 * 2)
+
     return output_tile_c
 
 def determine_gemm_tile_sizes(onnx_model: onnx.ModelProto, config: dict[str, Any], batch_size, target, node):
