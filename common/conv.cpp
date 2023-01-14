@@ -731,6 +731,9 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 
     conv_params->filter_tile_index = (first_unfinished_value_offset % conv_params->OUTPUT_CHANNEL) / cur_output_tile_c;
     conv_params->filter_idx = first_unfinished_value_offset % conv_params->OUTPUT_CHANNEL;
+#if JAPARI
+    conv_params->filter_idx = conv_params->filter_idx / (BATCH_SIZE + 1) * BATCH_SIZE;
+#endif
 
     first_unfinished_value_offset /= conv_params->OUTPUT_CHANNEL;
 

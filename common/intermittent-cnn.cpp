@@ -220,7 +220,11 @@ uint32_t job_index_to_offset(const ParameterInfo *output, uint16_t job_index) {
     uint32_t offset = input_tile_c_index * input_tile_len +
                       channel_offset;
     uint16_t cur_output_tile_c = MIN_VAL(OUTPUT_CHANNEL - channel_offset, output_tile_c);
+#if !JAPARI
     jobs_in_an_op = cur_output_tile_c / BATCH_SIZE;
+#else
+    jobs_in_an_op = cur_output_tile_c / (BATCH_SIZE + 1);
+#endif
 
     if (jobs_in_an_op) {
         // an op contains at least a batch
