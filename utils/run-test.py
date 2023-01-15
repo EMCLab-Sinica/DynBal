@@ -1,6 +1,6 @@
 import os
 import pathlib
-from subprocess import check_call
+from subprocess import (check_call, CalledProcessError)
 import sys
 
 TOPDIR = pathlib.Path(__file__).absolute().parents[1]
@@ -50,11 +50,14 @@ def main():
     suffix = os.environ['LOG_SUFFIX']
     config = os.environ['CONFIG'].split(' ')
 
-    build_and_test(config, suffix, intermittent=False)
+    try:
+        build_and_test(config, suffix, intermittent=False)
 
-    # Test intermittent running
-    if '--ideal' not in config:
-        build_and_test(config, suffix, intermittent=True)
+        # Test intermittent running
+        if '--ideal' not in config:
+            build_and_test(config, suffix, intermittent=True)
+    except CalledProcessError as e:
+        sys.exit(e.returncode)
 
 if __name__ == '__main__':
     main()
