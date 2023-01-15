@@ -120,7 +120,7 @@ static void flip_filter_state_bits(ConvTaskParams *conv_params, uint16_t n_filte
 static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
     int16_t output_tile_c = conv_params->flags->conv.output_tile_c;
     int16_t cur_output_tile_c;
-    if (conv_params->filter_idx + output_tile_c >= conv_params->N_FILTERS) {
+    if (conv_params->filter_idx >= conv_params->N_FILTERS - conv_params->N_FILTERS % output_tile_c) {
         cur_output_tile_c = conv_params->N_FILTERS - conv_params->filter_idx;
     } else {
         cur_output_tile_c = output_tile_c - conv_params->filter_idx % output_tile_c;
