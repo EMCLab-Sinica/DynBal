@@ -43,17 +43,6 @@ static void save_model_output_data() {
 }
 #endif
 
-volatile bool exit_called = false;
-
-static void sig_handler(int sig_no) {
-    if (sig_no == SIGINT) {
-        if (!exit_called) {
-            exit_called = true;
-            exit(2);
-        }
-    }
-}
-
 static void* map_file(const char* path, size_t len, bool read_only) {
     int fd = -1;
     struct stat stat_buf;
@@ -109,9 +98,6 @@ int main(int argc, char* argv[]) {
         n_samples = atoi(argv[optind]);
     }
 
-    // make sure exit handlers (ex: `print_all_counters()`) are executed upon SIGINT
-    signal(SIGINT, sig_handler);
-
     nvm = reinterpret_cast<uint8_t*>(map_file("nvm.bin", NVM_SIZE, read_only));
 #if ENABLE_COUNTERS
     counters_data = reinterpret_cast<Counters(*)[COUNTERS_LEN]>(map_file("counters.bin", 2*COUNTERS_LEN*sizeof(Counters), false));
@@ -131,7 +117,6 @@ int main(int argc, char* argv[]) {
 #ifdef USE_PROTOBUF
     if (out_file.is_open()) {
         model_output_data = std::make_unique<ModelOutput>();
-        std::atexit(save_model_output_data);
     }
 #endif
 
@@ -142,11 +127,17 @@ int main(int argc, char* argv[]) {
         first_run();
     }
 
+    ret = run_cnn_tests(n_samples);
+
 #if ENABLE_COUNTERS
-    std::atexit(print_all_counters);
+    print_all_counters();
 #endif
 
-    ret = run_cnn_tests(n_samples);
+#ifdef USE_PROTOBUF
+    if (out_file.is_open()) {
+        save_model_output_data();
+    }
+#endif
 
 #ifndef __linux__
     delete [] nvm;
