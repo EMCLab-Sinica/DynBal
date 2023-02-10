@@ -30,7 +30,7 @@ typedef struct ConvTaskParams {
     const ParameterInfo *conv_filter;
     const ParameterInfo *conv_bias;
     ParameterInfo *output;
-    const NodeFlags* flags;
+    NodeFlags* flags;
 
     /* aux vars remaining constant for a conv layer */
     uint16_t H;
@@ -592,7 +592,7 @@ static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params
     return tile_h;
 }
 
-void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node) {
+void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags* node_flags) {
     const ParameterInfo *conv_input = input[0], *conv_filter = input[1];
 
     /* input: N x C x H x W, filter: M x C x kH x kW */
@@ -602,7 +602,7 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
     ConvTaskParams *conv_params = &conv_params_obj;
 
     conv_params->model = model;
-    conv_params->flags = &node->flags;
+    conv_params->flags = node_flags;
 
     conv_params->kH = conv_filter->dims[2];
     conv_params->kW = conv_filter->dims[3];
@@ -664,7 +664,7 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
 #endif
 }
 
-void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node) {
+void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags*) {
     const ParameterInfo *conv_input = input[0], *conv_filter = input[1], *conv_bias = (node->inputs_len == 3) ? input[2] : nullptr;
     my_printf_debug("Conv!" NEWLINE);
 
@@ -827,7 +827,7 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     dump_params_nhwc_debug(model, output, node->output_name);
 }
 
-void alloc_convmerge(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node*) {
+void alloc_convmerge(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node*, NodeFlags*) {
     const ParameterInfo *data = input[0];
 
     uint16_t OUTPUT_CHANNEL = data->dims[1],
@@ -869,7 +869,7 @@ void ConvMergeOutputChunkHandler(uint32_t range_offset, uint16_t range_len, int8
 }
 #endif
 
-void handle_convmerge(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node) {
+void handle_convmerge(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags*) {
     // Do not use conv_params here as its intialization in alloc_conv and
     // handle_conv might be skipped if the Conv node has finished.
     const ParameterInfo *data = input[0];

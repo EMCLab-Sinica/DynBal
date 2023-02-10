@@ -134,7 +134,7 @@ class ONNXNodeWrapper:
     def __init__(self, orig_node: onnx.NodeProto):
         self.orig_node = orig_node
         self.max_output_id = 0
-        self.flags = ffi.new('union NodeFlags*')
+        self.flags = ffi.new('struct NodeFlags*')
         self.name = orig_node.name or orig_node.output[0] or orig_node.op_type
         self.inputs = []
 
@@ -377,6 +377,7 @@ outputs = {
     'samples': io.BytesIO(),
     'model': io.BytesIO(),
     'nodes': io.BytesIO(),
+    'node_flags': io.BytesIO(),
     'model_parameters_info': io.BytesIO(),
     'intermediate_parameters_info': io.BytesIO(),
     'labels': io.BytesIO(),
@@ -427,11 +428,18 @@ for node in nodes:
         output_nodes.write(to_bytes(0))
     output_nodes.write(to_bytes(node.max_output_id))
     output_nodes.write(to_bytes(ops.index(node.op_type)))
-    for idx in range(ffi.sizeof(node.flags.as_bytes)):
-        output_nodes.write(to_bytes(node.flags.as_bytes[idx], size=8))
     if Constants.HAWAII:
         for _ in range(2):
             output_nodes.write(to_bytes(0, size=32))  # Node::Footprint
+
+output_node_flags = outputs['node_flags']
+# Two copies for shadowing
+for _ in range(2):
+    for node in nodes:
+        for idx in range(ffi.sizeof(node.flags.as_bytes)):
+            output_node_flags.write(to_bytes(node.flags.as_bytes[idx], size=8))
+        output_node_flags.write(to_bytes(0x55, size=8))  # NodeFlags.canary
+        output_node_flags.write(to_bytes(0, size=8))  # NodeFlags.version
 
 parameter_info_idx = 0
 
@@ -560,6 +568,7 @@ with open(f'{args.data_output_dir}/data.cpp', 'w') as output_c, open(f'{args.dat
 struct ParameterInfo;
 struct Model;
 struct Node;
+struct NodeFlags;
 
 ''')
     for item in itertools.chain(dir(Constants), config.keys()):
@@ -590,14 +599,15 @@ struct Node;
 #include "platform.h"
 ''')
 
+    func_params = 'struct Model *model, const struct ParameterInfo *input[], struct ParameterInfo *output, const struct Node* node, struct NodeFlags* node_flags'
     # ops
     output_h.write('\n')
     for idx, op in enumerate(ops):
         output_h.write(f'#define Op{op} {idx}\n')
 
     for op in ops:
-        output_h.write('void alloc_{}(struct Model *model, const struct ParameterInfo *input[], struct ParameterInfo *output, const struct Node* node);\n'.format(op.lower()))
-        output_h.write('void handle_{}(struct Model *model, const struct ParameterInfo *input[], struct ParameterInfo *output, const struct Node* node);\n'.format(op.lower()))
+        output_h.write('void alloc_{}({});\n'.format(op.lower(), func_params))
+        output_h.write('void handle_{}({});\n'.format(op.lower(), func_params))
     output_c.write('const handler handlers[] = {\n')
     for op in ops:
         output_c.write(f'    handle_{op},\n'.lower())
@@ -609,7 +619,7 @@ struct Node;
     for op in ops:
         if op in INPLACE_UPDATE_OPS:
             output_c.write(textwrap.dedent(f'''
-                void alloc_{op.lower()}(struct Model *model, const struct ParameterInfo *[], struct ParameterInfo *output, const struct Node*) {{
+                void alloc_{op.lower()}({func_params}) {{
                     SlotInfo *cur_slot_info = get_slot_info(model, output->slot);
                     if (cur_slot_info) {{
                         cur_slot_info->user = model->layer_idx;
@@ -619,14 +629,14 @@ struct Node;
         else:
             output_c.write(textwrap.dedent(f'''
                 #if defined(__GNUC__) || defined(__clang__)
-                void __attribute__((weak)) alloc_{op.lower()}(struct Model *model, const struct ParameterInfo *[], struct ParameterInfo *output, const struct Node*) {{
+                void __attribute__((weak)) alloc_{op.lower()}({func_params}) {{
                     ERROR_OCCURRED();
                 }}
                 #endif
             '''))
         output_c.write(textwrap.dedent(f'''
             #if defined(__GNUC__) || defined(__clang__)
-            void __attribute__((weak)) handle_{op.lower()}(struct Model *model, const struct ParameterInfo *[], struct ParameterInfo *output, const struct Node*) {{
+            void __attribute__((weak)) handle_{op.lower()}({func_params}) {{
                 ERROR_OCCURRED();
             }}
             #endif

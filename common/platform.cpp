@@ -245,6 +245,35 @@ void record_overflow_handling_overhead(uint32_t cycles) {
 #endif
 }
 
+NodeFlags node_flags_vm[MODEL_NODES_LEN];
+
+template<>
+uint32_t nvm_addr<NodeFlags>(uint8_t copy_id, uint16_t real_node_idx) {
+    return NODE_FLAGS_OFFSET + (copy_id * MODEL_NODES_LEN + real_node_idx) * sizeof(NodeFlags);
+}
+
+template<>
+NodeFlags* vm_addr<NodeFlags>(uint16_t real_node_idx) {
+    return node_flags_vm + real_node_idx;
+}
+
+template<>
+const char* datatype_name<NodeFlags>(void) {
+    return "NodeFlags";
+}
+
+NodeFlags* get_node_flags(uint16_t node_idx) {
+    NodeFlags* ret = node_flags_vm + node_idx;
+    if (ret->canary != 0x55) {
+        get_versioned_data<NodeFlags>(node_idx);
+    }
+    return ret;
+}
+
+void commit_node_flags(uint16_t node_idx) {
+    commit_versioned_data<NodeFlags>(node_idx);
+}
+
 #if HAWAII
 Node::Footprint footprints_vm[MODEL_NODES_LEN];
 

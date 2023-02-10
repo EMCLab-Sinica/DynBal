@@ -108,6 +108,7 @@ void my_memcpy_from_param(Model* model, void *dest, const ParameterInfo *param, 
 
 static void handle_node(Model *model, uint16_t node_idx) {
     const Node *cur_node = get_node(node_idx);
+    NodeFlags* cur_node_flags = get_node_flags(node_idx);
 #if MY_DEBUG >= MY_DEBUG_LAYERS
     my_printf("Current node: %d, ", node_idx);
     my_printf("name = %.*s, ", NODE_NAME_LEN, cur_node->name);
@@ -130,14 +131,14 @@ static void handle_node(Model *model, uint16_t node_idx) {
     ParameterInfo *output = get_intermediate_parameter_info(node_idx);
     my_memcpy(output, input[0], sizeof(ParameterInfo) - sizeof(uint16_t)); // don't overwrite parameter_info_idx
     output->params_offset = 0;
-    allocators[cur_node->op_type](model, input, output, cur_node);
+    allocators[cur_node->op_type](model, input, output, cur_node, cur_node_flags);
     my_printf_debug("Needed mem = %d" NEWLINE, output->params_len);
     MY_ASSERT(output->params_len <= INTERMEDIATE_VALUES_SIZE);
 
 #if STATEFUL
     my_printf_debug("Old output state bit=%d" NEWLINE, get_state_bit(model, output->slot));
 #endif
-    handlers[cur_node->op_type](model, input, output, cur_node);
+    handlers[cur_node->op_type](model, input, output, cur_node, cur_node_flags);
 #if ENABLE_COUNTERS
     MY_ASSERT(counters_cleared());
 #endif

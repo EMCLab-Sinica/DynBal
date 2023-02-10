@@ -13,7 +13,7 @@
  * For fully-connected layers, which are implemented via Gemm in ONNX.
  */
 
-void alloc_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node) {
+void alloc_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags* node_flags) {
     const ParameterInfo *A = input[0], *B = input[1];
 
     MY_ASSERT(A->dims[0] == 1);
@@ -31,14 +31,14 @@ void alloc_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
 
     uint16_t output_len = output->dims[0] * output->dims[1];
 
-    output->params_len = output_len * upper_gauss(B->dims[0], node->flags.gemm.tile_channel) * sizeof(int16_t);
+    output->params_len = output_len * upper_gauss(B->dims[0], node_flags->gemm.tile_channel) * sizeof(int16_t);
 }
 
 int16_t weights_tmp[512];
 
-void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node) {
+void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags* node_flags) {
     const ParameterInfo *A = input[0], *B = input[1], *matC = input[2];
-    const NodeFlags* flags = &node->flags;
+    const NodeFlags* flags = node_flags;
 
     my_printf_debug("Gemm! A: (%dx%d), B: (%dx%d)" NEWLINE,
               A->dims[0], A->dims[1], B->dims[0], B->dims[1]);
@@ -233,14 +233,14 @@ void alloc_gemmmerge(Model *model, const ParameterInfo *input[], ParameterInfo *
     output->params_len = output_len * sizeof(int16_t);
 }
 
-void handle_gemmmerge(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node) {
+void handle_gemmmerge(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags* node_flags) {
     const ParameterInfo *X = input[0];
 
     my_printf_debug("GemmMerge!" NEWLINE);
 
     int16_t output_len = X->dims[0] * X->dims[1];
 
-    int16_t output_tile_size = node->flags.gemmmerge.tile_length;
+    int16_t output_tile_size = node_flags->gemmmerge.tile_length;
     if (!output_tile_size) {
         output_tile_size = output_len;
     }

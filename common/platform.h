@@ -20,7 +20,9 @@
 #define FIRST_RUN_OFFSET (NVM_SIZE - 2)
 #define MODEL_OFFSET (FIRST_RUN_OFFSET - 2 * MODEL_DATA_LEN)
 #define INTERMEDIATE_PARAMETERS_INFO_OFFSET (MODEL_OFFSET - INTERMEDIATE_PARAMETERS_INFO_DATA_LEN)
-#define NODES_OFFSET (INTERMEDIATE_PARAMETERS_INFO_OFFSET - NODES_DATA_LEN)
+// Generated node_flags_data already contains two copies for shadowing, so there is no need to multiply the size by 2 here
+#define NODE_FLAGS_OFFSET (INTERMEDIATE_PARAMETERS_INFO_OFFSET - NODE_FLAGS_DATA_LEN)
+#define NODES_OFFSET (NODE_FLAGS_OFFSET - NODES_DATA_LEN)
 
 struct ParameterInfo;
 struct Model;
@@ -42,6 +44,8 @@ void my_memcpy_from_parameters(void *dest, const ParameterInfo *param, uint32_t 
 void read_from_samples(void *dest, uint16_t offset_in_word, size_t n);
 ParameterInfo* get_intermediate_parameter_info(uint16_t i);
 void commit_intermediate_parameter_info(uint16_t i);
+NodeFlags* get_node_flags(uint16_t node_idx);
+void commit_node_flags(uint16_t node_idx);
 Model* get_model(void);
 Model* load_model_from_nvm(void);
 void commit_model(void);

@@ -34,16 +34,21 @@ struct ConcatNodeFlags {
     int8_t axis;
 };
 
-#define NODE_FLAGS_SIZE 16
+#define NODE_FLAGS_SIZE 14
 
-union NodeFlags {
-    struct ConvNodeFlags conv;
-    struct MaxPoolFlags maxpool;
-    struct GemmNodeFlags gemm;
-    struct GemmMergeNodeFlags gemmmerge;
-    struct SqueezeNodeFlags squeeze;
-    struct ConcatNodeFlags concat;
-    uint8_t as_bytes[NODE_FLAGS_SIZE];
+struct NodeFlags {
+    union {
+        struct ConvNodeFlags conv;
+        struct MaxPoolFlags maxpool;
+        struct GemmNodeFlags gemm;
+        struct GemmMergeNodeFlags gemmmerge;
+        struct SqueezeNodeFlags squeeze;
+        struct ConcatNodeFlags concat;
+        uint8_t as_bytes[NODE_FLAGS_SIZE];
+    };
+    // `canary` contains some non-zero value for detecting whether data are already in VM or not
+    uint8_t canary;
+    uint8_t version;
 };
 
-static_assert(sizeof(union NodeFlags) == NODE_FLAGS_SIZE, "Unexpected size for NodeFlags");
+static_assert(sizeof(struct NodeFlags) == NODE_FLAGS_SIZE + 2, "Unexpected size for NodeFlags");

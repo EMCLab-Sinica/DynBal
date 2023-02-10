@@ -216,6 +216,7 @@ void my_erase() {
 }
 
 void copy_data_to_nvm(void) {
+    // samples data
     std::ifstream samples_file("samples.bin", std::ios::binary);
     MY_ASSERT(samples_file.good(), "Failed to open samples.bin");
     const uint16_t samples_buflen = 1024;
@@ -228,6 +229,9 @@ void copy_data_to_nvm(void) {
         samples_offset += read_len;
         my_printf_debug("Copied %d bytes of samples data" NEWLINE, read_len);
     }
+
+    // others
+    write_to_nvm_segmented(node_flags_data, NODE_FLAGS_OFFSET, NODE_FLAGS_DATA_LEN);
 }
 
 void notify_layer_finished(void) {}

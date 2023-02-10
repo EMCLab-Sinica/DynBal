@@ -22,7 +22,6 @@ typedef struct Node {
     int16_t inputs[NUM_INPUTS];
     uint16_t max_output_id;
     uint16_t op_type;
-    NodeFlags flags;
 #if HAWAII
     struct Footprint {
         uint16_t value;
@@ -32,7 +31,7 @@ typedef struct Node {
 #endif
 } Node;
 
-static_assert(sizeof(Node) == NODE_NAME_LEN * 2 + 22 + NUM_INPUTS * 2 + HAWAII * 8, "Unexpected size for Node");
+static_assert(sizeof(Node) == NODE_NAME_LEN * 2 + 6 + NUM_INPUTS * 2 + HAWAII * 8, "Unexpected size for Node");
 
 struct Scale {
     int16_t fract;
@@ -129,8 +128,8 @@ void my_memcpy_from_param(Model* model, void *dest, const ParameterInfo *param, 
 /**********************************
  *       Operation handlers       *
  **********************************/
-typedef void (*handler)(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node);
-typedef void (*allocator)(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node);
+typedef void (*handler)(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags* node_flags);
+typedef void (*allocator)(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags* node_flags);
 // below are defined in ops.c
 extern const handler handlers[];
 extern const allocator allocators[];

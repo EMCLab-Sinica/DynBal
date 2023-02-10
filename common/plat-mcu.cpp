@@ -112,6 +112,7 @@ void my_erase() {
 void copy_data_to_nvm(void) {
     write_to_nvm_segmented(samples_data, SAMPLES_OFFSET, SAMPLES_DATA_LEN);
     write_to_nvm_segmented(parameters_data, PARAMETERS_OFFSET, PARAMETERS_DATA_LEN);
+    write_to_nvm_segmented(node_flags_data, NODE_FLAGS_OFFSET, NODE_FLAGS_DATA_LEN);
 }
 
 [[ noreturn ]] void ERROR_OCCURRED(void) {

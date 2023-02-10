@@ -14,12 +14,12 @@
 const uint8_t RELU_TILE_SIZE = 16;
 static_assert(RELU_TILE_SIZE % BATCH_SIZE == 0, "Incorrect tile size for ReLU");
 
-void alloc_relu(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node*) {
+void alloc_relu(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node*, NodeFlags*) {
     const ParameterInfo *data = input[0];
     output->slot = get_next_slot(model, data);
 }
 
-void handle_relu(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node) {
+void handle_relu(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags*) {
     my_printf_debug("ReLu!" NEWLINE);
 
     const ParameterInfo *X = input[0];
@@ -185,10 +185,10 @@ void handle_reshape(Model *model, const ParameterInfo *input[], ParameterInfo *o
     }
 }
 
-void handle_squeeze(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node) {
+void handle_squeeze(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags* node_flags) {
     my_printf_debug("Squeeze!" NEWLINE);
 
-    uint8_t axes = node->flags.squeeze.axes;
+    uint8_t axes = node_flags->squeeze.axes;
     // If axes is not provided, all the single dimensions will be removed from the shape.
     // https://github.com/onnx/onnx/blob/master/docs/Operators.md#squeeze
     uint8_t j = 0;
@@ -216,9 +216,9 @@ void handle_squeeze(Model *model, const ParameterInfo *input[], ParameterInfo *o
     }
 }
 
-void handle_unsqueeze(Model* model, const ParameterInfo* input[], ParameterInfo* output, const Node* node) {
+void handle_unsqueeze(Model* model, const ParameterInfo* input[], ParameterInfo* output, const Node* node, NodeFlags* node_flags) {
     my_printf_debug("Unsqueeze!" NEWLINE);
-    uint8_t axes = node->flags.squeeze.axes;
+    uint8_t axes = node_flags->squeeze.axes;
     uint8_t input_dim_offset = 0, output_dim_offset = 0;
     for (uint8_t i = 0; i < 4; i++) {
         if (axes & (1 << i)) {
@@ -232,9 +232,9 @@ void handle_unsqueeze(Model* model, const ParameterInfo* input[], ParameterInfo*
     }
 }
 
-void alloc_concat(Model* model, const ParameterInfo *input[], ParameterInfo* output, const Node* node) {
+void alloc_concat(Model* model, const ParameterInfo *input[], ParameterInfo* output, const Node* node, NodeFlags* node_flags) {
     // Only channel concatenation is supported for now
-    MY_ASSERT(node->flags.concat.axis == 1);
+    MY_ASSERT(node_flags->concat.axis == 1);
 
     output->dims[1] = 0;
     for (uint8_t input_idx = 0; input_idx < node->inputs_len; input_idx++) {
@@ -258,7 +258,7 @@ void alloc_concat(Model* model, const ParameterInfo *input[], ParameterInfo* out
     output->slot = get_next_slot(model, input[0]);
 }
 
-void handle_concat(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node) {
+void handle_concat(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags*) {
     my_printf_debug("Concat!" NEWLINE);
 
     uint32_t output_offset = 0;
@@ -336,7 +336,7 @@ void handle_concat(Model *model, const ParameterInfo *input[], ParameterInfo *ou
 #endif
 }
 
-void handle_softmax(Model*, const ParameterInfo*[], ParameterInfo*, const Node*) {
+void handle_softmax(Model*, const ParameterInfo*[], ParameterInfo*, const Node*, NodeFlags*) {
     // Do nothing - softmax does not change the relative order of values.
     // Just let run_model determine the max value
 }
