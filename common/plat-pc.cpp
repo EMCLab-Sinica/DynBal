@@ -6,6 +6,7 @@
 #include "my_debug.h"
 #include "platform.h"
 #include "data.h"
+#include <cinttypes>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -100,7 +101,7 @@ int main(int argc, char* argv[]) {
 
     nvm = reinterpret_cast<uint8_t*>(map_file("nvm.bin", NVM_SIZE, read_only));
 #if ENABLE_COUNTERS
-    counters_data = reinterpret_cast<Counters(*)[COUNTERS_LEN]>(map_file("counters.bin", 2*COUNTERS_LEN*sizeof(Counters), false));
+    counters_data = reinterpret_cast<Counters(*)[COUNTERS_LEN]>(map_file("counters.bin", 2*COUNTERS_LEN*sizeof(Counters), read_only));
 #endif
 
 #else
@@ -194,7 +195,7 @@ void my_memcpy_from_parameters(void *dest, const ParameterInfo *param, uint32_t 
 #if ENABLE_COUNTERS
     if (counters_enabled) {
         counters()->nvm_read_parameters += n;
-        my_printf_debug("Recorded %lu bytes fetched from parameters" NEWLINE, n);
+        my_printf_debug("Recorded %lu bytes fetched from parameters, accumulated=%" PRIu32 NEWLINE, n, counters()->nvm_read_parameters);
     }
 #endif
     my_memcpy_ex(dest, parameters_data + param->params_offset + offset_in_bytes, n, 0);

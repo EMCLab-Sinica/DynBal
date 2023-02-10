@@ -254,6 +254,7 @@ static const uint16_t BUFFER_TEMP_SIZE = 256;
 static int16_t buffer_temp[BUFFER_TEMP_SIZE];
 
 void compare_vm_nvm_impl(int16_t* vm_data, Model* model, const ParameterInfo* output, uint16_t output_offset, uint16_t blockSize) {
+    disable_counters();
     check_buffer_address(vm_data, blockSize);
     MY_ASSERT(blockSize <= BUFFER_TEMP_SIZE);
 
@@ -262,6 +263,7 @@ void compare_vm_nvm_impl(int16_t* vm_data, Model* model, const ParameterInfo* ou
     for (uint16_t idx = 0; idx < blockSize; idx++) {
         MY_ASSERT_ALWAYS(vm_data[idx] == buffer_temp[idx]);
     }
+    enable_counters();
 }
 
 void check_nvm_write_address_impl(uint32_t nvm_offset, size_t n) {
