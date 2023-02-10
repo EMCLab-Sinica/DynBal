@@ -133,7 +133,7 @@ void handle_relu(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     dump_params_nhwc_debug(model, output, node->output_name);
 }
 
-void handle_reshape(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node*) {
+void handle_reshape(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node*, NodeFlags*) {
     my_printf_debug("Reshape!" NEWLINE);
 
     const ParameterInfo *data = input[0], *shape = input[1];
@@ -341,10 +341,10 @@ void handle_softmax(Model*, const ParameterInfo*[], ParameterInfo*, const Node*,
     // Just let run_model determine the max value
 }
 
-void alloc_transpose(struct Model *model, const struct ParameterInfo **input, struct ParameterInfo *output, const struct Node *node) {
+void alloc_transpose(struct Model *model, const struct ParameterInfo **input, struct ParameterInfo *output, const struct Node *node, NodeFlags*) {
 }
 
-void handle_transpose(Model*, const ParameterInfo *input[], ParameterInfo *output, const Node*) {
+void handle_transpose(Model*, const ParameterInfo *input[], ParameterInfo *output, const Node*, NodeFlags*) {
     my_printf_debug("Transpose!" NEWLINE);
 
     const ParameterInfo *X = input[0];
@@ -355,11 +355,11 @@ void handle_transpose(Model*, const ParameterInfo *input[], ParameterInfo *outpu
     output->dims[3] = X->dims[2];
 }
 
-void alloc_add(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node *node) {
+void alloc_add(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node *node, NodeFlags*) {
     output->slot = get_next_slot(model, input[0]);
 }
 
-void handle_add(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node *node) {
+void handle_add(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node *node, NodeFlags*) {
     my_printf_debug("Add!" NEWLINE);
 
     const ParameterInfo *X = input[0], *Y = input[1];

@@ -628,14 +628,14 @@ struct NodeFlags;
             '''))
         else:
             output_c.write(textwrap.dedent(f'''
-                #if defined(__GNUC__) || defined(__clang__)
+                #if defined(FALLBACK_HANDLERS) && (defined(__GNUC__) || defined(__clang__))
                 void __attribute__((weak)) alloc_{op.lower()}({func_params}) {{
                     ERROR_OCCURRED();
                 }}
                 #endif
             '''))
         output_c.write(textwrap.dedent(f'''
-            #if defined(__GNUC__) || defined(__clang__)
+            #if defined(FALLBACK_HANDLERS) && (defined(__GNUC__) || defined(__clang__))
             void __attribute__((weak)) handle_{op.lower()}({func_params}) {{
                 ERROR_OCCURRED();
             }}
