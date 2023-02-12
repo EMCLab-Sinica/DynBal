@@ -36,7 +36,7 @@ enum {
     STRIDE_W = 1,
 };
 
-void alloc_maxpool(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags* node_flags) {
+void alloc_maxpool(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags* node_flags, const NodeFlags*) {
 
     const ParameterInfo *data = input[0];
 
@@ -157,7 +157,7 @@ static inline void offset_vector(int16_t* const buffer, int16_t offset, uint8_t 
 }
 #endif
 
-void handle_maxpool(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags*) {
+void handle_maxpool(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags*, const NodeFlags*) {
     my_printf_debug("MaxPool!" NEWLINE);
 
     /* XXX: add flags; assume no padding for now */
@@ -368,7 +368,7 @@ finished:
     }
 }
 
-void alloc_globalaveragepool(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node*, NodeFlags*) {
+void alloc_globalaveragepool(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node*, NodeFlags*, const NodeFlags*) {
     const ParameterInfo *data = input[0];
 
     MY_ASSERT(data->dims[0] == 1);
@@ -380,7 +380,7 @@ void alloc_globalaveragepool(Model *model, const ParameterInfo *input[], Paramet
     output->slot = get_next_slot(model, data);
 }
 
-void handle_globalaveragepool(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags*) {
+void handle_globalaveragepool(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags*, const NodeFlags*) {
     my_printf_debug("GlobalAveragePool!" NEWLINE);
 
     const ParameterInfo *data = input[0];

@@ -13,7 +13,7 @@
  * For fully-connected layers, which are implemented via Gemm in ONNX.
  */
 
-void alloc_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags* node_flags) {
+void alloc_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags* node_flags, const NodeFlags*) {
     const ParameterInfo *A = input[0], *B = input[1];
 
     MY_ASSERT(A->dims[0] == 1);
@@ -36,7 +36,7 @@ void alloc_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
 
 int16_t weights_tmp[512];
 
-void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags* node_flags) {
+void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags* node_flags, const NodeFlags*) {
     const ParameterInfo *A = input[0], *B = input[1], *matC = input[2];
     const NodeFlags* flags = node_flags;
 
@@ -227,13 +227,13 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     dump_params_debug(model, output, node->output_name);
 }
 
-void alloc_gemmmerge(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node*, NodeFlags*) {
+void alloc_gemmmerge(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node*, NodeFlags*, const NodeFlags*) {
     output->slot = get_next_slot(model, input[0]);
     int16_t output_len = output->dims[0] * output->dims[1];
     output->params_len = output_len * sizeof(int16_t);
 }
 
-void handle_gemmmerge(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags* node_flags) {
+void handle_gemmmerge(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags* node_flags, const NodeFlags*) {
     const ParameterInfo *X = input[0];
 
     my_printf_debug("GemmMerge!" NEWLINE);
