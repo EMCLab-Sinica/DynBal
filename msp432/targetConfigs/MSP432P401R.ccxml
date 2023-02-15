@@ -13,6 +13,11 @@
             <property Type="choicelist" Value="2" id="SWD Mode Settings">
                 <choice Name="SWD Mode - Aux COM port is target TDO pin" value="nothing"/>
             </property>
+            <property Type="choicelist" Value="1" id="Debug Probe Selection">
+                <choice Name="Select by serial number" value="0">
+                    <property Type="stringfield" Value="M4321005" id="-- Enter the serial number"/>
+                </choice>
+            </property>
             <platform XML_version="1.2" id="platform_0">
                 <instance XML_version="1.2" desc="MSP432P401R" href="devices/msp432p401r.xml" id="MSP432P401R" xml="msp432p401r.xml" xmlpath="devices"/>
             </platform>
