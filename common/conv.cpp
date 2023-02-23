@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cinttypes> // for PRId32
 #include "cnn_common.h"
+#include "conv.h"
 #include "counters.h"
 #include "data.h"
 #include "my_debug.h"
@@ -34,16 +35,7 @@ typedef struct ConvTaskParams {
     const NodeFlags* orig_flags;
 
     /* aux vars remaining constant for a conv layer */
-    uint16_t H;
-    uint16_t W;
-    // OUTPUT_H and OUTPUT_W to handle stride != 1
-    uint16_t OUTPUT_H;
-    uint16_t OUTPUT_W;
-    uint16_t kH;
-    uint16_t kW;
-    uint16_t CHANNEL; // Cannot use C as a variable name here as C is a macro on MSP430 :(
-    uint16_t OUTPUT_CHANNEL;
-    uint16_t N_FILTERS;
+    ConvLayerDimensions layer_dims;
     uint8_t group;
     const uint8_t* strides;
     uint16_t input_tile_c_offset;
@@ -118,11 +110,11 @@ static void flip_filter_state_bits(ConvTaskParams *conv_params, uint16_t n_filte
 }
 #endif
 
-static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
+static void convTask(int16_t cur_input_h, const ConvLayerDimensions* layer_dims, ConvTaskParams *conv_params) {
     int16_t output_tile_c = conv_params->flags->conv.output_tile_c;
     int16_t cur_output_tile_c;
-    if (conv_params->filter_idx >= conv_params->N_FILTERS - conv_params->N_FILTERS % output_tile_c) {
-        cur_output_tile_c = conv_params->N_FILTERS - conv_params->filter_idx;
+    if (conv_params->filter_idx >= layer_dims->N_FILTERS - layer_dims->N_FILTERS % output_tile_c) {
+        cur_output_tile_c = layer_dims->N_FILTERS - conv_params->filter_idx;
     } else {
         cur_output_tile_c = output_tile_c - conv_params->filter_idx % output_tile_c;
     }
@@ -151,9 +143,9 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
              output_w = (conv_params->input_w - conv_params->input_w_first) / conv_params->strides[1];
     // use NWHC so that output is written continuously on the address space
     uint16_t cur_output_data_offset =
-             conv_params->OUTPUT_W * conv_params->OUTPUT_H * (conv_params->input_tile_c_index * conv_params->OUTPUT_CHANNEL) +  // n
-             output_w * conv_params->OUTPUT_H * conv_params->OUTPUT_CHANNEL +                                                   // w
-             output_h * conv_params->OUTPUT_CHANNEL +                                                                           // h
+             layer_dims->OUTPUT_W * layer_dims->OUTPUT_H * (conv_params->input_tile_c_index * layer_dims->OUTPUT_CHANNEL) +  // n
+             output_w * layer_dims->OUTPUT_H * layer_dims->OUTPUT_CHANNEL +                                                   // w
+             output_h * layer_dims->OUTPUT_CHANNEL +                                                                           // h
              channel_offset_c;                                                                                                  // c
 
 #if INDIRECT_RECOVERY
@@ -172,35 +164,35 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
 
         uint16_t fill_length = conv_params->filter_offset;
         my_fill_q15(0, filter_tmp, fill_length);
-        uint16_t filter_len = conv_params->kH * conv_params->kW * conv_params->CHANNEL;
+        uint16_t filter_len = layer_dims->kH * layer_dims->kW * layer_dims->CHANNEL;
         for (uint16_t idx = 0; idx < cur_output_tile_c; idx++) {
             uint16_t filter_src_offset = (conv_params->filter_idx + idx) * filter_len;
             my_printf_debug("Copying filter %d" NEWLINE, conv_params->filter_idx + idx);
-            if (conv_params->cur_filter_tile_c == conv_params->CHANNEL && conv_params->kW * conv_params->CHANNEL == conv_params->dest_offset) {
+            if (conv_params->cur_filter_tile_c == layer_dims->CHANNEL && layer_dims->kW * layer_dims->CHANNEL == conv_params->dest_offset) {
                 uint16_t cur_filter_src_offset = filter_src_offset + conv_params->input_tile_c_offset;
-                uint16_t buffer_size = conv_params->cur_filter_tile_c * conv_params->kH * conv_params->kW;
+                uint16_t buffer_size = conv_params->cur_filter_tile_c * layer_dims->kH * layer_dims->kW;
                 my_memcpy_from_param(conv_params->model, filter_tmp, conv_params->conv_filter, cur_filter_src_offset, sizeof(int16_t) * buffer_size);
                 my_printf_debug("[%d, %d) => lea_buffer + [%ld, %ld)" NEWLINE,
                                 cur_filter_src_offset, cur_filter_src_offset + buffer_size,
                                 filter_tmp - lea_buffer, filter_tmp + buffer_size - lea_buffer);
             } else {
-                for (uint16_t h = 0; h < conv_params->kH; h++) {
+                for (uint16_t h = 0; h < layer_dims->kH; h++) {
                     int16_t *filter_dest_ptr = filter_tmp + h * conv_params->dest_offset;
-                    uint16_t cur_filter_src_offset = filter_src_offset + h * conv_params->kW * conv_params->CHANNEL + conv_params->input_tile_c_offset;
-                    if (conv_params->cur_filter_tile_c == conv_params->CHANNEL) {
-                        uint16_t buffer_size = conv_params->cur_filter_tile_c * conv_params->kW;
+                    uint16_t cur_filter_src_offset = filter_src_offset + h * layer_dims->kW * layer_dims->CHANNEL + conv_params->input_tile_c_offset;
+                    if (conv_params->cur_filter_tile_c == layer_dims->CHANNEL) {
+                        uint16_t buffer_size = conv_params->cur_filter_tile_c * layer_dims->kW;
                         my_printf_debug("[%d, %d) => lea_buffer + [%ld, %ld)" NEWLINE,
                                         cur_filter_src_offset, cur_filter_src_offset + buffer_size,
                                         filter_dest_ptr - lea_buffer, filter_dest_ptr + buffer_size - lea_buffer);
                         my_memcpy_from_param(conv_params->model, filter_dest_ptr, conv_params->conv_filter, cur_filter_src_offset, sizeof(int16_t) * buffer_size);
                     } else {
-                        for (uint16_t w = 0; w < conv_params->kW; w++) {
+                        for (uint16_t w = 0; w < layer_dims->kW; w++) {
                             my_printf_debug("[%d, %d) => lea_buffer + [%ld, %ld)" NEWLINE,
                                             cur_filter_src_offset, cur_filter_src_offset + conv_params->cur_filter_tile_c,
                                             filter_dest_ptr - lea_buffer, filter_dest_ptr + conv_params->cur_filter_tile_c - lea_buffer);
                             my_memcpy_from_param(conv_params->model, filter_dest_ptr, conv_params->conv_filter, cur_filter_src_offset, sizeof(int16_t) * conv_params->cur_filter_tile_c);
                             filter_dest_ptr += conv_params->cur_filter_tile_c;
-                            cur_filter_src_offset += conv_params->CHANNEL;
+                            cur_filter_src_offset += layer_dims->CHANNEL;
                         }
                     }
                 }
@@ -331,7 +323,7 @@ static void convTask(int16_t cur_input_h, ConvTaskParams *conv_params) {
 #if MY_DEBUG >= MY_DEBUG_VERBOSE
     for (uint16_t idx = 0; idx < cur_output_tile_c; idx++) {
         my_printf_debug("%d ", conv_params->filter_idx + idx);
-        MY_ASSERT(conv_params->filter_idx + idx < conv_params->N_FILTERS);
+        MY_ASSERT(conv_params->filter_idx + idx < layer_dims->N_FILTERS);
     }
 #endif
     my_printf_debug("output_h=%d output_w=%d" NEWLINE, output_h, output_w);
@@ -412,7 +404,7 @@ static inline uint16_t load_input_vector(uint32_t src_addr, int16_t* dest_addr, 
     return loaded_len;
 }
 
-static void load_ifm_tile_row(Model* model, const ConvTaskParams* conv_params, int32_t h_start, int32_t h_end) {
+static void load_ifm_tile_row(Model* model, const ConvLayerDimensions* layer_dims, const ConvTaskParams* conv_params, int32_t h_start, int32_t h_end) {
     /* copy input data, row by row */
 
     /* int32_t instead of int16_t as TI's compiler cannot handle negative
@@ -426,7 +418,7 @@ static void load_ifm_tile_row(Model* model, const ConvTaskParams* conv_params, i
      * and thus the resultant address is offset by 0x10000.
      */
     int32_t w_start = int16_max(0, conv_params->input_w),
-            w_end   = int16_min(conv_params->input_w+conv_params->kW-1, conv_params->W-1);
+            w_end   = int16_min(conv_params->input_w+layer_dims->kW-1, layer_dims->W-1);
     int16_t *dest;
 
     dest = lea_buffer;
@@ -439,7 +431,7 @@ static void load_ifm_tile_row(Model* model, const ConvTaskParams* conv_params, i
     uint8_t im2col_channel_offset = cur_input_tile_c;
     my_printf_debug("Copying row to lea_buffer + %d" NEWLINE,
                     static_cast<int>(dest - lea_buffer));
-    uint16_t cur_input_channel = conv_params->CHANNEL;
+    uint16_t cur_input_channel = layer_dims->CHANNEL;
 #if JAPARI
     start_cpu_counter(offsetof(Counters, embedding));
     if (conv_params->conv_input_has_footprints) {
@@ -451,9 +443,9 @@ static void load_ifm_tile_row(Model* model, const ConvTaskParams* conv_params, i
     int16_t input_src_offset;
     uint8_t transposed = conv_params->conv_input->param_flags & TRANSPOSED;
     if (transposed) {
-        input_src_offset = (w_start * conv_params->H + h_start) * cur_input_channel * conv_params->group;
+        input_src_offset = (w_start * layer_dims->H + h_start) * cur_input_channel * conv_params->group;
     } else {
-        input_src_offset = (h_start * conv_params->W + w_start) * cur_input_channel * conv_params->group;
+        input_src_offset = (h_start * layer_dims->W + w_start) * cur_input_channel * conv_params->group;
     }
 #if JAPARI
     input_src_offset += conv_params->input_tile_c_offset_with_footprints;
@@ -467,7 +459,7 @@ static void load_ifm_tile_row(Model* model, const ConvTaskParams* conv_params, i
     if (transposed) {
         input_src_vertical_offset = cur_input_channel * conv_params->group;
     } else {
-        input_src_vertical_offset = conv_params->W * cur_input_channel * conv_params->group;
+        input_src_vertical_offset = layer_dims->W * cur_input_channel * conv_params->group;
     }
     uint16_t input_row_len = (w_end - w_start + 1) * cur_input_tile_c * conv_params->group;
 
@@ -502,7 +494,7 @@ static void load_ifm_tile_row(Model* model, const ConvTaskParams* conv_params, i
                 load_input_vector(src_addr, dest_addr, cur_input_tile_c * conv_params->group, conv_params);
                 dest_addr += im2col_channel_offset * conv_params->group;
                 if (transposed) {
-                    src_addr += conv_params->H * cur_input_channel * conv_params->group;
+                    src_addr += layer_dims->H * cur_input_channel * conv_params->group;
                 } else {
                     src_addr += cur_input_channel * conv_params->group;
                 }
@@ -539,8 +531,8 @@ static void load_ifm_tile_row(Model* model, const ConvTaskParams* conv_params, i
     }
 }
 
-static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params) {
-    int8_t field_size = (conv_params->kH - 1) / 2;
+static uint16_t handle_conv_inner_loop(Model *model, const ConvLayerDimensions* layer_dims, ConvTaskParams *conv_params) {
+    int8_t field_size = (layer_dims->kH - 1) / 2;
     int16_t max_n_filters = conv_params->flags->conv.output_tile_c;
 #if JAPARI
     start_cpu_counter(offsetof(Counters, memory_layout));
@@ -549,7 +541,7 @@ static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params
 #endif
     // 1 additional filters for values before transpose
     uint16_t inputs_buffer_end = LEA_BUFFER_SIZE - OUTPUT_LEN - (max_n_filters + 1) * conv_params->filter_offset;
-    uint16_t tile_h = MIN_VAL(inputs_buffer_end / (conv_params->group * conv_params->dest_offset) - 2 * field_size, conv_params->H);
+    uint16_t tile_h = MIN_VAL(inputs_buffer_end / (conv_params->group * conv_params->dest_offset) - 2 * field_size, layer_dims->H);
     uint16_t inputs_len = (tile_h + 2 * field_size) * (conv_params->group * conv_params->dest_offset);
     MY_ASSERT(inputs_len < LEA_BUFFER_SIZE); // make sure no overflow occurs in the previous line
 
@@ -566,17 +558,17 @@ static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params
     }
 
     int16_t max_input_h = MIN_VAL(conv_params->input_h+tile_h-1, conv_params->input_h_last);
-    int32_t max_h_end = int16_min(conv_params->input_h+tile_h+(conv_params->kH-conv_params->strides[0]), conv_params->H)-1;
+    int32_t max_h_end = int16_min(conv_params->input_h+tile_h+(layer_dims->kH-conv_params->strides[0]), layer_dims->H)-1;
     int32_t h_start = int16_max(conv_params->input_h, 0);
 #if ON_DEMAN_TILE_LOADING
-    int32_t h_end = int16_min(h_start + conv_params->kH, conv_params->H) - 1;
+    int32_t h_end = int16_min(h_start + layer_dims->kH, layer_dims->H) - 1;
 #else
     int32_t h_end = max_h_end;
-    load_ifm_tile_row(model, conv_params, h_start, h_end);
+    load_ifm_tile_row(model, layer_dims, conv_params, h_start, h_end);
 #endif
     for (int16_t cur_input_h = conv_params->input_h; cur_input_h <= max_input_h; cur_input_h += conv_params->strides[0]) {
 #if ON_DEMAN_TILE_LOADING
-        load_ifm_tile_row(model, conv_params, h_start, h_end);
+        load_ifm_tile_row(model, layer_dims, conv_params, h_start, h_end);
         h_start = h_end + 1;
         h_end = int16_min(h_end + conv_params->strides[0], max_h_end);
 #endif
@@ -586,7 +578,7 @@ static uint16_t handle_conv_inner_loop(Model *model, ConvTaskParams *conv_params
         dump_matrix_debug(lea_buffer, inputs_len, ValueInfo(conv_params->conv_input, nullptr), false);
 
         // filter_idx is set to initial_c in handle_conv
-        convTask(cur_input_h, conv_params);
+        convTask(cur_input_h, layer_dims, conv_params);
         // reset here for further processing
         conv_params->filter_idx = conv_params->filter_tile_index * conv_params->flags->conv.output_tile_c;
     }
@@ -601,13 +593,14 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
     uint16_t OUTPUT_CHANNEL = conv_filter->dims[0];
 
     ConvTaskParams *conv_params = &conv_params_obj;
+    ConvLayerDimensions* layer_dims = &(conv_params->layer_dims);
 
     conv_params->model = model;
     conv_params->flags = node_flags;
     conv_params->orig_flags = orig_node_flags;
 
-    conv_params->kH = conv_filter->dims[2];
-    conv_params->kW = conv_filter->dims[3];
+    layer_dims->kH = conv_filter->dims[2];
+    layer_dims->kW = conv_filter->dims[3];
 
     conv_params->strides = conv_params->flags->conv.strides;
 
@@ -617,11 +610,11 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
     enum { PAD_H_BEGIN = 0, PAD_W_BEGIN = 1, PAD_H_END = 2, PAD_W_END = 3 };
     conv_params->input_h_first = -pads[PAD_H_BEGIN];
     conv_params->input_w_first = -pads[PAD_W_BEGIN];
-    conv_params->input_h_last = H + pads[PAD_H_END] - conv_params->kH;
-    conv_params->input_w_last = W + pads[PAD_W_END] - conv_params->kW;
+    conv_params->input_h_last = H + pads[PAD_H_END] - layer_dims->kH;
+    conv_params->input_w_last = W + pads[PAD_W_END] - layer_dims->kW;
 
-    conv_params->OUTPUT_H = (conv_params->input_h_last - conv_params->input_h_first) / conv_params->strides[0] + 1;
-    conv_params->OUTPUT_W = (conv_params->input_w_last - conv_params->input_w_first) / conv_params->strides[1] + 1;
+    layer_dims->OUTPUT_H = (conv_params->input_h_last - conv_params->input_h_first) / conv_params->strides[0] + 1;
+    layer_dims->OUTPUT_W = (conv_params->input_w_last - conv_params->input_w_first) / conv_params->strides[1] + 1;
 
 #if !JAPARI
     // skip the check for JAPARI as it is too complex
@@ -650,11 +643,11 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
 
     /* XXX: extend flags; assume dilation=(1, 1) for now */
     output->slot = get_next_slot(model, conv_input);
-    output->params_len = conv_params->n_tiles_c * conv_params->OUTPUT_H * conv_params->OUTPUT_W * OUTPUT_CHANNEL * sizeof(int16_t);
+    output->params_len = conv_params->n_tiles_c * layer_dims->OUTPUT_H * layer_dims->OUTPUT_W * OUTPUT_CHANNEL * sizeof(int16_t);
     output->dims[0] = 1;
     output->dims[1] = OUTPUT_CHANNEL;
-    output->dims[2] = conv_params->OUTPUT_H;
-    output->dims[3] = conv_params->OUTPUT_W;
+    output->dims[2] = layer_dims->OUTPUT_H;
+    output->dims[3] = layer_dims->OUTPUT_W;
     output->scale = conv_input->scale * conv_filter->scale;
     output->param_flags |= TRANSPOSED;
 #if STATEFUL
@@ -675,6 +668,7 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
                    CHANNEL = conv_filter->dims[1];
 
     ConvTaskParams *conv_params = &conv_params_obj;
+    ConvLayerDimensions* layer_dims = &(conv_params->layer_dims);
 
     my_printf_debug("n_tiles_c = %d" NEWLINE, conv_params->n_tiles_c);
 
@@ -684,17 +678,17 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     conv_params->output = output;
     conv_params->filter_buffer_addr = NULL;
     conv_params->cached_filter_idx = -1;
-    conv_params->H = H;
-    conv_params->W = W;
+    layer_dims->H = H;
+    layer_dims->W = W;
 #if JAPARI
     start_cpu_counter(offsetof(Counters, stripping));
     conv_params->conv_input_has_footprints = has_footprints(conv_input);
     stop_cpu_counter();
 #endif
 
-    conv_params->CHANNEL = CHANNEL;
-    conv_params->OUTPUT_CHANNEL = output->dims[1];
-    conv_params->N_FILTERS = conv_filter->dims[0];
+    layer_dims->CHANNEL = CHANNEL;
+    layer_dims->OUTPUT_CHANNEL = output->dims[1];
+    layer_dims->N_FILTERS = conv_filter->dims[0];
 
     conv_params->input_tile_c_offset = 0;
     conv_params->input_tile_c_index = 0;
@@ -724,23 +718,23 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     cur_output_tile_c = extend_for_footprints(cur_output_tile_c, conv_params->force_align_footprints);
     stop_cpu_counter();
 #endif
-    uint16_t slice_size_input_channel_tiling = conv_params->OUTPUT_W * conv_params->OUTPUT_H * conv_params->OUTPUT_CHANNEL;
+    uint16_t slice_size_input_channel_tiling = layer_dims->OUTPUT_W * layer_dims->OUTPUT_H * layer_dims->OUTPUT_CHANNEL;
 
     conv_params->input_tile_c_index = first_unfinished_value_offset / slice_size_input_channel_tiling;
     // Not extending for JAPARI footprints here as input_tile_c_offset will be extended later
     conv_params->input_tile_c_offset = conv_params->input_tile_c_index * conv_params->flags->conv.input_tile_c;
     first_unfinished_value_offset %= slice_size_input_channel_tiling;
 
-    conv_params->filter_tile_index = (first_unfinished_value_offset % conv_params->OUTPUT_CHANNEL) / cur_output_tile_c;
-    conv_params->filter_idx = first_unfinished_value_offset % conv_params->OUTPUT_CHANNEL;
+    conv_params->filter_tile_index = (first_unfinished_value_offset % layer_dims->OUTPUT_CHANNEL) / cur_output_tile_c;
+    conv_params->filter_idx = first_unfinished_value_offset % layer_dims->OUTPUT_CHANNEL;
 #if JAPARI
     conv_params->filter_idx = conv_params->filter_idx / (BATCH_SIZE + 1) * BATCH_SIZE;
 #endif
 
-    first_unfinished_value_offset /= conv_params->OUTPUT_CHANNEL;
+    first_unfinished_value_offset /= layer_dims->OUTPUT_CHANNEL;
 
-    conv_params->input_w += first_unfinished_value_offset / conv_params->OUTPUT_H * conv_params->strides[1];
-    first_unfinished_value_offset %= conv_params->OUTPUT_H;
+    conv_params->input_w += first_unfinished_value_offset / layer_dims->OUTPUT_H * conv_params->strides[1];
+    first_unfinished_value_offset %= layer_dims->OUTPUT_H;
 
     conv_params->input_h += first_unfinished_value_offset * conv_params->strides[0];
 
@@ -763,7 +757,7 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
         stop_cpu_counter();
 #endif
         my_printf_debug("cur_input_tile_c = %d" NEWLINE, conv_params->cur_input_tile_c);
-        conv_params->dest_offset = conv_params->kW * conv_params->cur_input_tile_c;
+        conv_params->dest_offset = layer_dims->kW * conv_params->cur_input_tile_c;
         if (conv_params->group == 1) {
             // +1 for bias
             conv_params->dest_offset++;
@@ -777,25 +771,25 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
             // a dummy value for each slice (kW * CHANNEL q15 values)
             conv_params->dest_offset++;
         }
-        conv_params->filter_offset = conv_params->kH * conv_params->dest_offset;
+        conv_params->filter_offset = layer_dims->kH * conv_params->dest_offset;
 
         while (true) {
             for (; conv_params->input_w <= conv_params->input_w_last; conv_params->input_w += conv_params->strides[1]) {
                 for (; conv_params->input_h <= conv_params->input_h_last;) {
-                    conv_params->input_h += handle_conv_inner_loop(model, conv_params);
+                    conv_params->input_h += handle_conv_inner_loop(model, layer_dims, conv_params);
                 }
                 conv_params->input_h = conv_params->input_h_first;
                 report_progress();
             }
             conv_params->input_w = conv_params->input_w_first;
             conv_params->filter_tile_index++;
-            if (conv_params->filter_tile_index * conv_params->flags->conv.output_tile_c >= conv_params->N_FILTERS) {
+            if (conv_params->filter_tile_index * conv_params->flags->conv.output_tile_c >= layer_dims->N_FILTERS) {
                 break;
             }
             conv_params->filter_idx = conv_params->filter_tile_index * conv_params->flags->conv.output_tile_c;
 #if INDIRECT_RECOVERY
             start_cpu_counter(offsetof(Counters, state_query));
-            uint32_t new_output_offset = conv_params->input_tile_c_index * conv_params->OUTPUT_CHANNEL * conv_params->OUTPUT_H * conv_params->OUTPUT_W;
+            uint32_t new_output_offset = conv_params->input_tile_c_index * layer_dims->OUTPUT_CHANNEL * layer_dims->OUTPUT_H * layer_dims->OUTPUT_W;
 #if JAPARI
             start_cpu_counter(offsetof(Counters, embedding));
             new_output_offset += extend_for_footprints(conv_params->filter_idx);
@@ -814,7 +808,7 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 #if INDIRECT_RECOVERY
         start_cpu_counter(offsetof(Counters, state_query));
         find_initial_state_bit(&conv_params->old_output_offset, &conv_params->turning_point_idx, &conv_params->next_turning_point, &conv_params->cur_slot_info,
-                               conv_params->input_tile_c_index * conv_params->OUTPUT_CHANNEL * conv_params->OUTPUT_H * conv_params->OUTPUT_W, model, output);
+                               conv_params->input_tile_c_index * layer_dims->OUTPUT_CHANNEL * layer_dims->OUTPUT_H * layer_dims->OUTPUT_W, model, output);
         stop_cpu_counter();
 #endif
     }
