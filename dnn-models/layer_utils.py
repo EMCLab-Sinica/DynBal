@@ -118,9 +118,8 @@ def determine_gemm_tile_sizes(onnx_model: onnx.ModelProto, config: dict[str, Any
                                        512]) // tile_size_unit * tile_size_unit
         full_tile_width = (extend_for_footprints(batch_size, tile_size_unit)+1)/2*2
         while node_flags.tile_channel > 0:
-            tmp = int(math.ceil(B_rows / node_flags.tile_channel))
             needed_mem = (A_rows * A_cols + 2) + (node_flags.tile_channel + 2) * full_tile_width + A_rows * full_tile_width
-            logger.debug("tile_channel=%d, tmp=%d, needed_mem=%d", node_flags.tile_channel, tmp, needed_mem)
+            logger.debug("tile_channel=%d, needed_mem=%d", node_flags.tile_channel, needed_mem)
             if needed_mem <= lea_buffer_size[target]:
                 break
             node_flags.tile_channel -= tile_size_unit
