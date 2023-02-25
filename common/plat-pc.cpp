@@ -53,10 +53,10 @@ static void* map_file(const char* path, size_t len, bool read_only) {
             return NULL;
         }
         fd = open(path, O_RDWR|O_CREAT, 0600);
-        ftruncate(fd, len);
     } else {
         fd = open(path, O_RDWR);
     }
+    ftruncate(fd, len);
     void* ptr = mmap(NULL, len, PROT_READ|PROT_WRITE, read_only ? MAP_PRIVATE : MAP_SHARED, fd, 0);
     if (ptr == MAP_FAILED) {
         perror("mmap() failed");
