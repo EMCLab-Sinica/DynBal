@@ -197,7 +197,8 @@ NodeFlags* get_node_flags(uint16_t node_idx) {
     return ret;
 }
 
-void commit_node_flags(uint16_t node_idx) {
+void commit_node_flags(const NodeFlags* node_flags) {
+    uint16_t node_idx = node_flags - node_flags_vm;
     commit_versioned_data<NodeFlags>(node_idx);
 }
 

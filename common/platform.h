@@ -45,7 +45,7 @@ void read_from_samples(void *dest, uint16_t offset_in_word, size_t n);
 ParameterInfo* get_intermediate_parameter_info(uint16_t i);
 void commit_intermediate_parameter_info(uint16_t i);
 NodeFlags* get_node_flags(uint16_t node_idx);
-void commit_node_flags(uint16_t node_idx);
+void commit_node_flags(const NodeFlags* node_flags);
 Model* get_model(void);
 Model* load_model_from_nvm(void);
 void commit_model(void);
