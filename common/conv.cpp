@@ -37,7 +37,6 @@ typedef struct ConvTaskParams {
     /* aux vars remaining constant for a conv layer */
     ConvLayerDimensions layer_dims;
     uint8_t group;
-    const uint8_t* strides;
     uint16_t input_tile_c_offset;
     uint16_t input_tile_c_index;
     uint16_t cur_input_tile_c;
@@ -139,8 +138,8 @@ static void convTask(int16_t cur_input_h, const ConvLayerDimensions* layer_dims,
     }
     stop_cpu_counter();
 #endif
-    uint16_t output_h = (cur_input_h - conv_params->input_h_first) / conv_params->strides[0],
-             output_w = (conv_params->input_w - conv_params->input_w_first) / conv_params->strides[1];
+    uint16_t output_h = (cur_input_h - conv_params->input_h_first) / layer_dims->STRIDE_H,
+             output_w = (conv_params->input_w - conv_params->input_w_first) / layer_dims->STRIDE_W;
     // use NWHC so that output is written continuously on the address space
     uint16_t cur_output_data_offset =
              layer_dims->OUTPUT_W * layer_dims->OUTPUT_H * (conv_params->input_tile_c_index * layer_dims->OUTPUT_CHANNEL) +  // n
@@ -558,7 +557,7 @@ static uint16_t handle_conv_inner_loop(Model *model, const ConvLayerDimensions* 
     }
 
     int16_t max_input_h = MIN_VAL(conv_params->input_h+tile_h-1, conv_params->input_h_last);
-    int32_t max_h_end = int16_min(conv_params->input_h+tile_h+(layer_dims->kH-conv_params->strides[0]), layer_dims->H)-1;
+    int32_t max_h_end = int16_min(conv_params->input_h+tile_h+(layer_dims->kH-layer_dims->STRIDE_H), layer_dims->H)-1;
     int32_t h_start = int16_max(conv_params->input_h, 0);
 #if ON_DEMAN_TILE_LOADING
     int32_t h_end = int16_min(h_start + layer_dims->kH, layer_dims->H) - 1;
@@ -566,11 +565,11 @@ static uint16_t handle_conv_inner_loop(Model *model, const ConvLayerDimensions* 
     int32_t h_end = max_h_end;
     load_ifm_tile_row(model, layer_dims, conv_params, h_start, h_end);
 #endif
-    for (int16_t cur_input_h = conv_params->input_h; cur_input_h <= max_input_h; cur_input_h += conv_params->strides[0]) {
+    for (int16_t cur_input_h = conv_params->input_h; cur_input_h <= max_input_h; cur_input_h += layer_dims->STRIDE_H) {
 #if ON_DEMAN_TILE_LOADING
         load_ifm_tile_row(model, layer_dims, conv_params, h_start, h_end);
         h_start = h_end + 1;
-        h_end = int16_min(h_end + conv_params->strides[0], max_h_end);
+        h_end = int16_min(h_end + layer_dims->STRIDE_H, max_h_end);
 #endif
 
         my_printf_debug("Loaded inputs" NEWLINE);
@@ -602,7 +601,8 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
     layer_dims->kH = conv_filter->dims[2];
     layer_dims->kW = conv_filter->dims[3];
 
-    conv_params->strides = conv_params->flags->conv.strides;
+    layer_dims->STRIDE_H = conv_params->flags->conv.strides[0];
+    layer_dims->STRIDE_W = conv_params->flags->conv.strides[1];
 
     conv_params->group = conv_params->flags->conv.group;
 
@@ -613,8 +613,8 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
     conv_params->input_h_last = H + pads[PAD_H_END] - layer_dims->kH;
     conv_params->input_w_last = W + pads[PAD_W_END] - layer_dims->kW;
 
-    layer_dims->OUTPUT_H = (conv_params->input_h_last - conv_params->input_h_first) / conv_params->strides[0] + 1;
-    layer_dims->OUTPUT_W = (conv_params->input_w_last - conv_params->input_w_first) / conv_params->strides[1] + 1;
+    layer_dims->OUTPUT_H = (conv_params->input_h_last - conv_params->input_h_first) / layer_dims->STRIDE_H + 1;
+    layer_dims->OUTPUT_W = (conv_params->input_w_last - conv_params->input_w_first) / layer_dims->STRIDE_W + 1;
 
 #if !JAPARI
     // skip the check for JAPARI as it is too complex
@@ -733,14 +733,14 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 
     first_unfinished_value_offset /= layer_dims->OUTPUT_CHANNEL;
 
-    conv_params->input_w += first_unfinished_value_offset / layer_dims->OUTPUT_H * conv_params->strides[1];
+    conv_params->input_w += first_unfinished_value_offset / layer_dims->OUTPUT_H * conv_params->layer_dims.STRIDE_W;
     first_unfinished_value_offset %= layer_dims->OUTPUT_H;
 
-    conv_params->input_h += first_unfinished_value_offset * conv_params->strides[0];
+    conv_params->input_h += first_unfinished_value_offset * conv_params->layer_dims.STRIDE_H;
 
     my_printf_debug("initial output N = %d" NEWLINE, conv_params->input_tile_c_index);
-    my_printf_debug("initial output H = %d" NEWLINE, (conv_params->input_h - conv_params->input_h_first) / conv_params->strides[0]);
-    my_printf_debug("initial output W = %d" NEWLINE, (conv_params->input_w - conv_params->input_w_first) / conv_params->strides[1]);
+    my_printf_debug("initial output H = %d" NEWLINE, (conv_params->input_h - conv_params->input_h_first) / conv_params->layer_dims.STRIDE_H);
+    my_printf_debug("initial output W = %d" NEWLINE, (conv_params->input_w - conv_params->input_w_first) / conv_params->layer_dims.STRIDE_W);
     my_printf_debug("initial output C = %d" NEWLINE, conv_params->filter_idx);
     // = happens when all values are finished
     MY_ASSERT(conv_params->input_tile_c_index <= conv_params->n_tiles_c);
@@ -774,7 +774,7 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
         conv_params->filter_offset = layer_dims->kH * conv_params->dest_offset;
 
         while (true) {
-            for (; conv_params->input_w <= conv_params->input_w_last; conv_params->input_w += conv_params->strides[1]) {
+            for (; conv_params->input_w <= conv_params->input_w_last; conv_params->input_w += conv_params->layer_dims.STRIDE_W) {
                 for (; conv_params->input_h <= conv_params->input_h_last;) {
                     conv_params->input_h += handle_conv_inner_loop(model, layer_dims, conv_params);
                 }
