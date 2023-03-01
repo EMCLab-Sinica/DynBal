@@ -18,7 +18,8 @@
 
 // growing down (like stack)
 #define FIRST_RUN_OFFSET (NVM_SIZE - 2)
-#define MODEL_OFFSET (FIRST_RUN_OFFSET - 2 * MODEL_DATA_LEN)
+#define INFERENCE_STATS_OFFSET (FIRST_RUN_OFFSET - 2 * 12)
+#define MODEL_OFFSET (INFERENCE_STATS_OFFSET - 2 * MODEL_DATA_LEN)
 #define INTERMEDIATE_PARAMETERS_INFO_OFFSET (MODEL_OFFSET - INTERMEDIATE_PARAMETERS_INFO_DATA_LEN)
 // Generated node_flags_data already contains two copies for shadowing, so there is no need to multiply the size by 2 here
 #define NODE_FLAGS_OFFSET (INTERMEDIATE_PARAMETERS_INFO_OFFSET - NODE_FLAGS_DATA_LEN)

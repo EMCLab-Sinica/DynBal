@@ -10,6 +10,8 @@
 #include "intermittent-cnn.h"
 #include "my_dsplib.h"
 #include "platform.h"
+#include "dynbal.h"
+#include "dynbal-conv.h"
 
 #define ON_DEMAN_TILE_LOADING 1
 
@@ -745,6 +747,10 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     // = happens when all values are finished
     MY_ASSERT(conv_params->input_tile_c_index <= conv_params->n_tiles_c);
     stop_cpu_counter();
+#endif
+
+#if RuntimeConfiguration == DynBal
+    update_progress_indicator_conv(conv_params->flags, conv_params->orig_flags, conv_params->layer_dims, first_unfinished_job_idx);
 #endif
 
     int16_t input_channels = conv_filter->dims[1];

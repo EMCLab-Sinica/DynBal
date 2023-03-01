@@ -104,6 +104,8 @@ set (intermittent_cnn_SOURCES
     ${COMMON_SRC_PATH}/plat-pc.cpp
     ${COMMON_SRC_PATH}/platform.cpp
     ${COMMON_SRC_PATH}/my_dsplib.cpp
+    ${COMMON_SRC_PATH}/dynbal.cpp
+    ${COMMON_SRC_PATH}/dynbal-conv.cpp
     ${CMAKE_BINARY_DIR}/data.cpp
 )
 if (USE_PROTOBUF)
