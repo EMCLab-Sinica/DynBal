@@ -17,14 +17,14 @@ public:
     uint16_t nearest_value(uint8_t dim_idx, uint16_t dim_value) const;
     uint32_t calc(uint8_t dim_idx, uint16_t dim_value) const;
 
-protected:
-    uint32_t data_reuse_cost() const;
-
-private:
     enum ParameterDimension {
         InputTileChannel,
         OutputTileChannel,
     };
+protected:
+    uint32_t data_reuse_cost() const;
+
+private:
     const ConvLayerDimensions& layer_dims;
     uint16_t input_tile_c;
     uint16_t output_tile_c;

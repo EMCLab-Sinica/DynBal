@@ -2,7 +2,6 @@
 #include <cmath>
 #include "cnn_common.h"
 #include "conv.h"
-#include "double_buffering.h"
 #include "dynbal-conv.h"
 #include "my_debug.h"
 #include "op_utils.h"
@@ -63,38 +62,6 @@ uint16_t UsageSpanConv::nearest_value(uint8_t dim_idx, uint16_t dim_value) const
 }
 
 #if RuntimeConfiguration == DynBal
-InferenceStats inference_stats_vm[2];
-
-template<>
-uint32_t nvm_addr<InferenceStats>(uint8_t copy_id, uint16_t) {
-    return INFERENCE_STATS_OFFSET + copy_id * sizeof(InferenceStats);
-}
-
-template<>
-InferenceStats* vm_addr<InferenceStats>(uint16_t op_type_idx) {
-    return &inference_stats_vm[op_type_idx];
-}
-
-template<>
-const char* datatype_name<InferenceStats>(void) {
-    return "InferenceStats";
-}
-
-InferenceStats* load_inference_stats_from_nvm(InferenceStatsOpType op_type) {
-    uint16_t op_type_idx = static_cast<uint16_t>(op_type);
-    const InferenceStats* stats = &inference_stats_vm[op_type_idx];
-    InferenceStats* ret = get_versioned_data<InferenceStats>(op_type_idx);
-    my_printf_debug("Loaded inference stats power_cycle_energy=%d, last_progress_indicator=%d" NEWLINE, stats->power_cycle_energy, stats->last_progress_indicator);
-    return ret;
-}
-
-void commit_inference_stats(InferenceStatsOpType op_type) {
-    uint16_t op_type_idx = static_cast<uint16_t>(op_type);
-    const InferenceStats* stats = &inference_stats_vm[op_type_idx];
-    my_printf_debug("Saving inference stats power_cycle_energy=%d, last_progress_indicator=%d" NEWLINE, stats->power_cycle_energy, stats->last_progress_indicator);
-    commit_versioned_data<InferenceStats>(op_type_idx);
-}
-
 void adapt_conv_dynbal(NodeFlags* node_flags, const NodeFlags* orig_flags, const UsageSpanConv* usage_span, uint32_t power_cycle_energy) {
     uint16_t output_tile_c_upper = orig_flags->conv.output_tile_c, output_tile_c_lower = 2;
     uint16_t input_tile_c_upper = orig_flags->conv.input_tile_c, input_tile_c_lower = 2;
@@ -102,7 +69,7 @@ void adapt_conv_dynbal(NodeFlags* node_flags, const NodeFlags* orig_flags, const
         { input_tile_c_lower,  input_tile_c_upper },
         { output_tile_c_lower, output_tile_c_upper }
     };
-    uint8_t dim_idx = 1;
+    uint8_t dim_idx = UsageSpanConv::ParameterDimension::OutputTileChannel;
     uint16_t new_output_tile_c = convex_search(usage_span, dim_idx, value_ranges);
     node_flags->conv.output_tile_c = new_output_tile_c;
 
@@ -112,7 +79,6 @@ void adapt_conv_dynbal(NodeFlags* node_flags, const NodeFlags* orig_flags, const
 void update_progress_indicator_conv(NodeFlags* node_flags, const NodeFlags* orig_flags, const ConvLayerDimensions& layer_dims, uint32_t first_unfinished_job_idx) {
     InferenceStats* stats = load_inference_stats_from_nvm(InferenceStatsOpType::Conv);
 
-    // stats->power_cycle_energy = 173484;
     const UsageSpanConv usage_span(layer_dims, orig_flags->conv.input_tile_c, orig_flags->conv.output_tile_c, stats->power_cycle_energy);
 
     if (first_unfinished_job_idx == 0) {

@@ -17,7 +17,6 @@ public:
 
 uint16_t convex_search(const UsageSpan* usage_span, uint8_t dim_idx, const uint16_t value_ranges[][2]);
 
-#if RuntimeConfiguration == DynBal
 struct InferenceStats {
     uint32_t last_progress_indicator;
     uint32_t power_cycle_energy;
@@ -32,7 +31,6 @@ enum class InferenceStatsOpType {
 };
 void commit_inference_stats(InferenceStatsOpType op_type);
 InferenceStats* load_inference_stats_from_nvm(InferenceStatsOpType op_type);
-#endif
 
 #if RuntimeConfiguration == Exhaustive
 struct ExhaustiveLookupTable {

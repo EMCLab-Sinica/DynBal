@@ -749,7 +749,7 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     stop_cpu_counter();
 #endif
 
-#if RuntimeConfiguration == DynBal
+#if INTERMITTENT && RuntimeConfiguration == DynBal
     update_progress_indicator_conv(conv_params->flags, conv_params->orig_flags, conv_params->layer_dims, first_unfinished_job_idx);
 #endif
 
