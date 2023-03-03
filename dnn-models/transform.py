@@ -5,7 +5,6 @@ import itertools
 import logging
 import os.path
 import pathlib
-import struct
 import textwrap
 import warnings
 
@@ -18,8 +17,7 @@ import numpy as np
 
 from configs import (
     configs,
-    lea_buffer_size,
-    ARM_PSTATE_LEN,
+    vm_size,
     OUTPUT_LEN,
 )
 from utils import (
@@ -36,6 +34,7 @@ from utils import (
     infer_auto_pad,
     load_model,
     run_model,
+    to_bytes,
 )
 from onnx_utils import (
     compute_parameter_scales,
@@ -74,7 +73,6 @@ class Constants:
     NVM_SIZE = 512 * 1024
     N_SAMPLES = 20
     LEA_BUFFER_SIZE = 0
-    ARM_PSTATE_LEN = ARM_PSTATE_LEN
     OUTPUT_LEN = OUTPUT_LEN
     USE_ARM_CMSIS = 0
     CONFIG = None
@@ -135,6 +133,7 @@ class ONNXNodeWrapper:
     def __init__(self, orig_node: onnx.NodeProto):
         self.orig_node = orig_node
         self.max_output_id = 0
+        self.pState_len = 0
         self.flags = ffi.new('struct NodeFlags*')
         self.name = orig_node.name or orig_node.output[0] or orig_node.op_type
         self.inputs = []
@@ -201,7 +200,7 @@ Constants.INTERMITTENT = Constants.STATEFUL | Constants.HAWAII | Constants.JAPAR
 Constants.INDIRECT_RECOVERY = Constants.STATEFUL | Constants.JAPARI
 if args.target == 'msp432':
     Constants.USE_ARM_CMSIS = 1
-Constants.LEA_BUFFER_SIZE = lea_buffer_size[args.target]
+Constants.LEA_BUFFER_SIZE = vm_size[args.target]
 
 names = {}
 
@@ -330,9 +329,13 @@ for idx, n in enumerate(nodes):
 max_output_tile_size = 0
 for n in nodes:
     if n.op_type == 'Conv':
-        max_output_tile_size = max(max_output_tile_size, determine_conv_tile_c(onnx_model, config, Constants.JAPARI, args.target, n))
+        cur_output_tile_c, _, pState_usage = determine_conv_tile_c(onnx_model, config, Constants.JAPARI, args.target, n)
+        max_output_tile_size = max(max_output_tile_size, cur_output_tile_c)
+        n.pState_len = pState_usage
     if n.op_type == 'Gemm':
-        max_output_tile_size = max(max_output_tile_size, determine_gemm_tile_sizes(onnx_model, config, Constants.BATCH_SIZE, args.target, n))
+        cur_output_tile_c, _, pState_usage = determine_gemm_tile_sizes(onnx_model, config, Constants.BATCH_SIZE, args.target, n)
+        max_output_tile_size = max(max_output_tile_size, cur_output_tile_c)
+        n.pState_len = pState_usage
     n.inputs = [names[i] for i in n.input]
 
 for idx, node in enumerate(nodes):
@@ -358,19 +361,6 @@ for params in onnx_model.graph.initializer:
 
     assert parameters[names[params.name]] is None
     parameters[names[params.name]] = params
-
-def to_bytes(arr, size=16):
-    arr = np.array(arr).flatten()
-    FORMAT_CHARS = {
-        8: 'B',  # unsigned char
-        16: 'h',
-        32: 'i',
-        64: 'q'
-    }
-    if size not in FORMAT_CHARS:
-        raise ValueError(f'Unsupported size {size}')
-    # https://stackoverflow.com/a/34794744
-    return struct.pack('%u%c' % (len(arr), FORMAT_CHARS[size]), *arr)
 
 def nchw2nhwc(arr, dims):
     arr = np.reshape(arr, dims)  # Change flattened to 4-D
@@ -438,6 +428,7 @@ for node in nodes:
     for _ in range(Constants.NUM_INPUTS - len(node.inputs)):
         output_nodes.write(to_bytes(0))
     output_nodes.write(to_bytes(node.max_output_id))
+    output_nodes.write(to_bytes(node.pState_len))
     output_nodes.write(to_bytes(ops.index(node.op_type)))
     write_node_flags(output_nodes, node)
     if Constants.HAWAII:

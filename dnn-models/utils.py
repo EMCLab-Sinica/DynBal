@@ -5,6 +5,7 @@ import itertools
 import logging
 import os.path
 import pathlib
+import struct
 import sys
 import tarfile
 import zipfile
@@ -426,6 +427,19 @@ def remap_inputs(model: onnx.ModelProto, input_mapping: dict[str, str]):
             del model.graph.input[idx]
 
     return onnxoptimizer.optimize(model, ['eliminate_deadend'])
+
+def to_bytes(arr, size=16):
+    arr = np.array(arr).flatten()
+    FORMAT_CHARS = {
+        8: 'B',  # unsigned char
+        16: 'h',
+        32: 'i',
+        64: 'q'
+    }
+    if size not in FORMAT_CHARS:
+        raise ValueError(f'Unsupported size {size}')
+    # https://stackoverflow.com/a/34794744
+    return struct.pack('%u%c' % (len(arr), FORMAT_CHARS[size]), *arr)
 
 def import_model_output_pb2():
     try:

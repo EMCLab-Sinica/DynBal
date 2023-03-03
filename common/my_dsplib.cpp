@@ -164,17 +164,16 @@ void my_min_q15(const int16_t *pSrc, uint32_t blockSize, int16_t *pResult, uint1
     }
 }
 
-#if USE_ARM_CMSIS
-static int16_t pState[ARM_PSTATE_LEN];
-#endif
-
-void my_matrix_mpy_q15(uint16_t A_rows, uint16_t A_cols, uint16_t B_rows, uint16_t B_cols, int16_t *pSrcA, int16_t *pSrcB, int16_t *pDst, ParameterInfo *param, uint16_t offset_in_word, size_t values_to_preserve) {
+void my_matrix_mpy_q15(uint16_t A_rows, uint16_t A_cols, uint16_t B_rows, uint16_t B_cols, int16_t *pSrcA, int16_t *pSrcB, int16_t *pDst,
+                       ParameterInfo *param, uint16_t offset_in_word, size_t values_to_preserve, uint16_t pState_len) {
     // XXX: LEA doc requires all matrix dimensions to be even, while LEA
     // appears to still give correct results when srcARows is odd
     // srcBCols should really be even, though
     // http://e2e.ti.com/support/microcontrollers/msp430/f/166/t/716353?MSP430FR5992-MSP-DSPLib-msp-matrix-mpy-q15
     MY_ASSERT((A_cols & 1) || (B_cols & 1) == 0);
-    MY_ASSERT(B_rows * B_cols <= ARM_PSTATE_LEN);
+#if USE_ARM_CMSIS
+    MY_ASSERT(B_rows * B_cols <= pState_len);
+#endif
     MY_ASSERT(A_cols == B_rows);
     check_buffer_address(pSrcA, A_rows * A_cols);
     check_buffer_address(pSrcB, B_rows * B_cols);
@@ -190,6 +189,7 @@ void my_matrix_mpy_q15(uint16_t A_rows, uint16_t A_cols, uint16_t B_rows, uint16
     arm_mat_init_q15(&A, A_rows, A_cols, pSrcA);
     arm_mat_init_q15(&B, B_rows, B_cols, pSrcB);
     arm_mat_init_q15(&C, A_rows, B_cols, pDst);
+    int16_t* pState = lea_buffer + LEA_BUFFER_SIZE - pState_len;
 #ifdef __MSP432__
     arm_status status = arm_mat_mult_fast_q15(&A, &B, &C, pState, my_memcpy_to_param, param, offset_in_word, values_to_preserve, state_offsets);
     MY_ASSERT(status == ARM_MATH_SUCCESS);

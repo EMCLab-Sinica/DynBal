@@ -4,16 +4,15 @@ from datasets import (
     load_har,
 )
 
-ARM_PSTATE_LEN = 8704
 # Acceleration output buffer size
 # TODO: make these adjustable on runtime
 OUTPUT_LEN = 256
 
-lea_buffer_size = {
+vm_size = {
     # (4096 - 0x138 (LEASTACK) - 2 * 8 (MSP_LEA_MAC_PARAMS)) / sizeof(int16_t)
     'msp430': 1884,
     # determined by trial and error
-    'msp432': 18000,
+    'msp432': 26704,  # includes space for pState
 }
 
 # intermediate_values_size should < 65536, or TI's compiler gets confused

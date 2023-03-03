@@ -38,6 +38,7 @@ typedef struct ConvTaskParams {
 
     /* aux vars remaining constant for a conv layer */
     ConvLayerDimensions layer_dims;
+    uint16_t pState_len;
     uint8_t group;
     uint16_t input_tile_c_offset;
     uint16_t input_tile_c_index;
@@ -75,8 +76,6 @@ typedef struct ConvTaskParams {
 } ConvTaskParams;
 
 static ConvTaskParams conv_params_obj;
-
-int16_t * const matrix_mpy_results = lea_buffer + LEA_BUFFER_SIZE - OUTPUT_LEN;
 
 // for group convolution
 static int16_t biases[OUTPUT_LEN];
@@ -156,6 +155,7 @@ static void convTask(int16_t cur_input_h, const ConvLayerDimensions* layer_dims,
     dump_matrix_debug(state_offsets, n_filters, ValueInfo(conv_params->conv_input, nullptr), false);
     stop_cpu_counter();
 #endif
+    int16_t * const matrix_mpy_results = lea_buffer + LEA_BUFFER_SIZE - OUTPUT_LEN - conv_params->pState_len;
 
     /* copy filter data */
     if (conv_params->cached_filter_idx != conv_params->filter_idx || conv_params->cached_input_tile_c_offset != conv_params->input_tile_c_offset) {
@@ -290,7 +290,7 @@ static void convTask(int16_t cur_input_h, const ConvLayerDimensions* layer_dims,
     if (conv_params->group == 1) {
         MY_ASSERT(A_rows * B_cols <= OUTPUT_LEN);
         my_matrix_mpy_q15(A_rows, A_cols, B_rows, B_cols, input_buffer_addr, filter_buffer_addr, matrix_mpy_results,
-                          conv_params->output, cur_output_data_offset, values_to_preserve);
+                          conv_params->output, cur_output_data_offset, values_to_preserve, conv_params->pState_len);
     } else {
         MY_ASSERT(B_rows * B_cols <= OUTPUT_LEN);
         if (n_filters == conv_params->group) {
@@ -331,7 +331,8 @@ static void convTask(int16_t cur_input_h, const ConvLayerDimensions* layer_dims,
 
     my_printf_debug("input" NEWLINE);
     dump_matrix_debug(input_buffer_addr, A_rows, A_cols, ValueInfo(conv_params->conv_input, nullptr), false);
-    my_printf_debug("filter_buffer_addr = lea_buffer + LEA_BUFFER_SIZE - %d" NEWLINE, static_cast<int>(lea_buffer + LEA_BUFFER_SIZE - filter_buffer_addr));
+    my_printf_debug("filter_buffer_addr = lea_buffer + LEA_BUFFER_SIZE - OUTPUT_LEN - pState_len - %d" NEWLINE,
+                    static_cast<int>(lea_buffer + LEA_BUFFER_SIZE - OUTPUT_LEN - conv_params->pState_len - filter_buffer_addr));
     my_printf_debug("filter" NEWLINE);
     dump_matrix_debug(filter_buffer_addr, B_rows, B_cols, ValueInfo(conv_params->conv_filter, nullptr), false);
     if (conv_params->group != 1) {
@@ -541,10 +542,10 @@ static uint16_t handle_conv_inner_loop(Model *model, const ConvLayerDimensions* 
     stop_cpu_counter();
 #endif
     // 1 additional filters for values before transpose
-    uint16_t inputs_buffer_end = LEA_BUFFER_SIZE - OUTPUT_LEN - (max_n_filters + 1) * conv_params->filter_offset;
+    uint16_t inputs_buffer_end = LEA_BUFFER_SIZE - OUTPUT_LEN - conv_params->pState_len - (max_n_filters + 1) * conv_params->filter_offset;
     uint16_t tile_h = MIN_VAL(inputs_buffer_end / (conv_params->group * conv_params->dest_offset) - 2 * field_size, layer_dims->H);
     uint16_t inputs_len = (tile_h + 2 * field_size) * (conv_params->group * conv_params->dest_offset);
-    MY_ASSERT(inputs_len < LEA_BUFFER_SIZE); // make sure no overflow occurs in the previous line
+    MY_ASSERT(inputs_len < LEA_BUFFER_SIZE - OUTPUT_LEN - conv_params->pState_len); // make sure no overflow occurs in the previous line
 
     my_printf_debug("Reinitialize input buffer" NEWLINE "tile_h = %d, inputs_len = %d" NEWLINE, tile_h, inputs_len);
 
@@ -606,6 +607,7 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
     layer_dims->STRIDE_H = conv_params->flags->conv.strides[0];
     layer_dims->STRIDE_W = conv_params->flags->conv.strides[1];
 
+    conv_params->pState_len = node->pState_len;
     conv_params->group = conv_params->flags->conv.group;
 
     const uint8_t* pads = conv_params->flags->conv.pads;

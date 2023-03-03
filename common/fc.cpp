@@ -201,7 +201,7 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
             my_printf_debug("Tile for B" NEWLINE);
             dump_matrix_debug(buffer_b, extended_tile_channels, full_tile_width, ValueInfo(B, model));
             my_matrix_mpy_q15(1, extended_tile_channels, extended_tile_channels, full_tile_width, buffer_a, buffer_b, buffer_temp,
-                              output, output_offset, values_to_preserve);
+                              output, output_offset, values_to_preserve, node->pState_len);
             my_printf_debug("matrix_mpy_results" NEWLINE);
             dump_matrix_debug(buffer_temp, full_tile_width, ValueInfo(output, model));
             my_printf_debug(NEWLINE);
