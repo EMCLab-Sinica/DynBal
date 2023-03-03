@@ -120,7 +120,9 @@ def determine_gemm_tile_sizes(onnx_model: onnx.ModelProto, config: dict[str, Any
         full_tile_width = (extend_for_footprints(batch_size, tile_size_unit)+1)/2*2
         while node_flags.tile_channel > 0:
             tile_input_usage = (A_rows * A_cols + 2) + (node_flags.tile_channel + 2) * full_tile_width + A_rows * full_tile_width
-            pState_usage = (tile_size_unit * 2) * (node_flags.tile_channel + 2)
+            pState_usage = 0
+            if target == 'msp432':
+                pState_usage = (tile_size_unit * 2) * (node_flags.tile_channel + 2)
             total_vm_usage = tile_input_usage + pState_usage
             logger.debug("tile_channel=%d, tile_input_usage=%d, pState_usage=%d, total_vm_usage=%d",
                          node_flags.tile_channel, tile_input_usage, pState_usage, total_vm_usage)
