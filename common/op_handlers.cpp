@@ -24,7 +24,7 @@ void handle_relu(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 
     const ParameterInfo *X = input[0];
 
-    int16_t data_len = X->params_len / 2;
+    uint32_t data_len = X->params_len / 2;
 
     uint16_t output_offset = 0;
 #if INTERMITTENT
