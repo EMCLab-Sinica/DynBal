@@ -7,7 +7,7 @@ import platformdirs
 import torch
 import torchaudio
 import torchvision.datasets
-import torchvision.transforms as transforms
+from torchvision.transforms import Compose, ToTensor, Resize
 from torch.utils.data import TensorDataset
 import torchdatasets as td
 
@@ -20,10 +20,14 @@ from utils import (
     kws_dnn_model,
 )
 
-def load_data_cifar10(train: bool) -> ModelData:
+def load_data_cifar10(train: bool, target_size: tuple[int, int]) -> ModelData:
     xdg_cache_home = platformdirs.user_cache_path()
+    transforms = Compose([
+        ToTensor(),
+        Resize(size=target_size[-2:]),  # H and W from NCHW of ONNX
+    ])
     with filelock.FileLock(xdg_cache_home / 'cifar10.lock'):
-        dataset = torchvision.datasets.CIFAR10(root=xdg_cache_home, train=train, download=True, transform=transforms.ToTensor())
+        dataset = torchvision.datasets.CIFAR10(root=xdg_cache_home, train=train, download=True, transform=transforms)
     return ModelData(dataset=dataset, data_layout=DataLayout.NCHW)
 
 class SpeechCommands_MFCC(torchaudio.datasets.SPEECHCOMMANDS):
@@ -72,16 +76,17 @@ class SpeechCommands_MFCC(torchaudio.datasets.SPEECHCOMMANDS):
 
         return mfcc[0], label
 
-def load_data_google_speech(train: bool) -> ModelData:
+def load_data_google_speech(train: bool, target_size: tuple[int, int]) -> ModelData:
     xdg_cache_home = platformdirs.user_cache_path()
     with filelock.FileLock(xdg_cache_home / 'SpeechCommands.lock'):
         dataset = SpeechCommands_MFCC(root=xdg_cache_home, download=True, subset='training' if train else 'testing')
         # Using an on-disk cache as invoking TensorFlow for each data item is very slow
         dataset = td.datasets.WrapDataset(dataset).cache(td.cachers.Pickle(xdg_cache_home / 'SpeechCommands_MFCC'))
+    assert dataset[0][0].shape == target_size
     return ModelData(dataset, data_layout=DataLayout.NEUTRAL)
 
 # Inspired by https://blog.csdn.net/bucan804228552/article/details/120143943
-def load_har(train: bool):
+def load_har(train: bool, target_size: tuple[int, int]):
     try:
         orig_sys_path = sys.path.copy()
         sys.path.append(str(THIS_DIR / 'deep-learning-HAR' / 'utils'))
@@ -90,6 +95,7 @@ def load_har(train: bool):
         archive_dir = download_file('https://archive.ics.uci.edu/ml/machine-learning-databases/00240/UCI%20HAR%20Dataset.zip',
                                     filename='UCI HAR Dataset.zip', post_processor=functools.partial(extract_archive, subdir='UCI HAR Dataset'))
         X, labels, _ = read_data(archive_dir, split='train' if train else 'test')
+        assert X[0].shape == target_size
         _, X = standardize(np.random.rand(*X.shape), X)
         dataset = TensorDataset(torch.from_numpy(X.astype(np.float32)), torch.from_numpy(labels-1))
         return ModelData(dataset=dataset, data_layout=DataLayout.NCW)

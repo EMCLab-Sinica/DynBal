@@ -27,7 +27,6 @@ configs = {
         'intermediate_values_size': 28800,
         'data_loader': load_data_cifar10,
         'n_all_samples': 10000,
-        'sample_size': [3, 32, 32],
         'op_filters': 2,
     },
     'cifar10-cnn': {
@@ -39,7 +38,6 @@ configs = {
         'intermediate_values_size': 57600,
         'data_loader': load_data_cifar10,
         'n_all_samples': 10000,
-        'sample_size': [3, 32, 32],
         'op_filters': 2,
     },
     'kws': {
@@ -51,7 +49,6 @@ configs = {
         'intermediate_values_size': 576,
         'data_loader': load_data_google_speech,
         'n_all_samples': 4890,
-        'sample_size': [25, 10],  # MFCC gives 25x10 tensors
         'op_filters': 4,
     },
     'har': {
@@ -63,7 +60,6 @@ configs = {
         'intermediate_values_size': 9216,
         'data_loader': load_har,
         'n_all_samples': 2947,
-        'sample_size': [9, 128],
         'op_filters': 4,
     },
 }

@@ -40,6 +40,7 @@ from utils import (
 from onnx_utils import (
     compute_parameter_scales,
     find_tensor_annotation,
+    get_sample_size,
     list_tensors_for_annotations,
 )
 from model_utils import (
@@ -164,19 +165,23 @@ if args.debug:
     logging.getLogger('intermittent-cnn').setLevel(logging.DEBUG)
 else:
     logging.getLogger('intermittent-cnn').setLevel(logging.INFO)
+
 config = configs[args.config]
-config['total_sample_size'] = np.prod(config['sample_size'])
+onnx_model = load_model(config, model_variant=args.model_variant)
+
+sample_size = get_sample_size(onnx_model)
+
+config['total_sample_size'] = np.prod(sample_size)
 if 'gemm_tile_length' not in config:
     config['gemm_tile_length'] = 0
 Constants.CONFIG = args.config
 if args.all_samples:
     Constants.N_SAMPLES = config['n_all_samples']
     Constants.NVM_SIZE += config['n_all_samples'] * 2*config['total_sample_size']  # multiply by 2 for Q15
-model_data = config['data_loader'](train=False)
+model_data = config['data_loader'](train=False, target_size=sample_size)
 images, labels = next(iter(model_data.data_loader(limit=Constants.N_SAMPLES)))
 images = images.numpy()
 
-onnx_model = load_model(config, model_variant=args.model_variant)
 Constants.FIRST_SAMPLE_OUTPUTS = list(run_model(onnx_model, model_data, limit=1, verbose=False)[0])
 Constants.FP32_ACCURACY = run_model(onnx_model, model_data, limit=None, verbose=False)
 add_merge_nodes(onnx_model)

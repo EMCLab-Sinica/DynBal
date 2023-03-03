@@ -20,6 +20,11 @@ import onnxruntime.backend as backend
 import platformdirs
 from torch.utils.data import Dataset, DataLoader
 
+from onnx_utils import (
+    find_initializer,
+    get_sample_size,
+)
+
 logger = logging.getLogger('intermittent-cnn.utils')
 
 INPLACE_UPDATE_OPS = ['Reshape', 'Softmax', 'Squeeze', 'Unsqueeze']
@@ -85,11 +90,6 @@ def download_file(url: str, filename: str, post_processor: Optional[Callable] = 
             ret = post_processor(local_path)
 
     return ret
-
-def find_initializer(onnx_model: onnx.ModelProto, name: str) -> Optional[onnx.TensorProto]:
-    for initializer in onnx_model.graph.initializer:
-        if initializer.name == name:
-            return initializer
 
 def find_tensor_value_info(onnx_model: onnx.ModelProto, name: str) -> onnx.ValueInfoProto:
     if name.endswith('_before_merge'):
@@ -178,10 +178,12 @@ def load_model(config, model_variant):
     # https://github.com/onnx/onnx/blob/master/docs/PythonAPIOverview.md
     onnx_model = onnx.load_model(THIS_DIR / f'{model_name}.onnx')
 
+    sample_size = get_sample_size(onnx_model)
+
     # onnxoptimizer requires known dimensions, so do shape inference and set the batch size=1.
     # The batch size will be changed to a variable after another dynamic_shape_inference.
     # https://github.com/onnx/optimizer/blob/v0.2.6/onnxoptimizer/passes/fuse_matmul_add_bias_into_gemm.h#L60
-    dynamic_shape_inference(onnx_model, config['sample_size'])
+    dynamic_shape_inference(onnx_model, sample_size)
     change_batch_size(onnx_model)
 
     # https://zhuanlan.zhihu.com/p/41255090
@@ -192,7 +194,7 @@ def load_model(config, model_variant):
         'fuse_matmul_add_bias_into_gemm',
     ])
 
-    dynamic_shape_inference(onnx_model, config['sample_size'])
+    dynamic_shape_inference(onnx_model, sample_size)
     onnx.checker.check_model(onnx_model)
 
     return onnx_model

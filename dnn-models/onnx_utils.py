@@ -1,10 +1,8 @@
+from typing import Optional
+
 import onnx
 import onnx.numpy_helper
 import numpy as np
-
-from utils import (
-    find_initializer,
-)
 
 def add_tensor_annotation(onnx_model, key, tensor_name, data_type, vals):
     mapping = onnx.StringStringEntryProto()
@@ -37,6 +35,14 @@ def list_tensors_for_annotations(onnx_model: onnx.ModelProto):
         for mapping in tensor_annotation.quant_parameter_tensor_names:
             referenced_tensors.append(mapping.value)
     return referenced_tensors
+
+def find_initializer(onnx_model: onnx.ModelProto, name: str) -> Optional[onnx.TensorProto]:
+    for initializer in onnx_model.graph.initializer:
+        if initializer.name == name:
+            return initializer
+
+def get_sample_size(onnx_model: onnx.ModelProto) -> tuple[int, int]:
+    return tuple(dims_from_value_info(onnx_model.graph.input[0]))
 
 def dims_from_value_info(value_info: onnx.ValueInfoProto):
     shape = value_info.type.tensor_type.shape
