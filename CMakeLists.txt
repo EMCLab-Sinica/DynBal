@@ -33,10 +33,10 @@ set(COMMON_SRC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/common)
 file(GLOB CCS_ARM_ROOT $ENV{HOME}/ti/ccs*/ccs/ccs_base/arm)
 if (NOT "${CCS_ARM_ROOT}" STREQUAL "" AND NOT CMAKE_CROSSCOMPILING)
     message(STATUS "Found CCS ARM root at ${CCS_ARM_ROOT}")
-    option (BUILD_MSP432 "Build for MSP432" ON)
+    set(BUILD_MSP432 ON)
 else ()
     message(WARNING "No CCS ARM root found or cross-compiling detected. Not building plat-mcu.")
-    option (BUILD_MSP432 "Build for MSP432" OFF)
+    set(BUILD_MSP432 OFF)
 endif ()
 
 # Keep this list in sync with ARM-CMSIS/sync-cmsis.py
