@@ -36,7 +36,7 @@ uint32_t UsageSpanConv::calc(uint8_t dim_idx, uint16_t dim_value) const {
 
     // Data refetch cost
     // TODO: compare with counters
-    uint32_t input_cost, filter_cost, data_refetch_cost, usage_span;
+    uint64_t input_cost, filter_cost, data_refetch_cost, usage_span;
     input_cost = cur_output_tile_c * n_one_filter_values;
     filter_cost = cur_output_tile_c * n_one_filter_values * layer_dims.OUTPUT_H * layer_dims.OUTPUT_W;
     // memory costs
@@ -45,8 +45,9 @@ uint32_t UsageSpanConv::calc(uint8_t dim_idx, uint16_t dim_value) const {
     data_refetch_cost = (input_cost * n_input_values + filter_cost * n_filter_values) / power_cycle_energy;
     usage_span = data_reuse_cost + data_refetch_cost;
 
-    my_printf_debug("input_cost=%" PRIu32 " filter_cost=%" PRIu32 " partial_sum_cost=%" PRIu32 NEWLINE, input_cost, filter_cost, partial_sum_cost);
-    my_printf_debug("data_reuse_cost=%" PRIu32 " data_refetch_cost=%" PRIu32 " usage_span=%" PRIu32 NEWLINE, data_reuse_cost, data_refetch_cost, usage_span);
+    my_printf_debug("input_cost=%" PRIu64 " filter_cost=%" PRIu64 " partial_sum_cost=%" PRIu32 NEWLINE, input_cost, filter_cost, partial_sum_cost);
+    my_printf_debug("n_input_values=%" PRIu32 " n_filter_values=%" PRIu32 NEWLINE, n_input_values, n_filter_values);
+    my_printf_debug("data_reuse_cost=%" PRIu32 " data_refetch_cost=%" PRIu64 " usage_span=%" PRIu64 NEWLINE, data_reuse_cost, data_refetch_cost, usage_span);
 
     return usage_span;
 }
