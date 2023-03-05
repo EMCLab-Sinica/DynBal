@@ -94,6 +94,19 @@ void read_from_nvm(void* vm_buffer, uint32_t nvm_offset, size_t n) {
     SPI_READ(&addr, reinterpret_cast<uint8_t*>(vm_buffer), n);
 }
 
+struct {
+    uint16_t port;
+    uint16_t pin;
+} indicators[] = {
+#ifdef __MSP430__
+    { GPIO_PORT_P4, GPIO_PIN7 }, // used in notify_layer_finished()
+    { GPIO_PORT_P1, GPIO_PIN5 }, // TODO: check if it works
+#else
+    { GPIO_PORT_P5, GPIO_PIN4 }, // used in notify_layer_finished()
+    { GPIO_PORT_P4, GPIO_PIN7 },
+#endif
+};
+
 void write_to_nvm(const void* vm_buffer, uint32_t nvm_offset, size_t n, uint16_t timer_delay) {
     SPI_ADDR addr;
     addr.L = nvm_offset;
@@ -122,15 +135,11 @@ void copy_data_to_nvm(void) {
 #ifdef __MSP430__
 #define GPIO_COUNTER_PORT GPIO_PORT_P8
 #define GPIO_COUNTER_PIN GPIO_PIN0
-#define GPIO_LAYER_COUNTER_PORT GPIO_PORT_P4
-#define GPIO_LAYER_COUNTER_PIN GPIO_PIN7
 #define GPIO_RESET_PORT GPIO_PORT_P5
 #define GPIO_RESET_PIN GPIO_PIN7
 #else
 #define GPIO_COUNTER_PORT GPIO_PORT_P5
 #define GPIO_COUNTER_PIN GPIO_PIN5
-#define GPIO_LAYER_COUNTER_PORT GPIO_PORT_P5
-#define GPIO_LAYER_COUNTER_PIN GPIO_PIN4
 #define GPIO_RESET_PORT GPIO_PORT_P2
 #define GPIO_RESET_PIN GPIO_PIN5
 #endif
@@ -140,8 +149,10 @@ void copy_data_to_nvm(void) {
 void IntermittentCNNTest() {
     GPIO_setAsOutputPin(GPIO_COUNTER_PORT, GPIO_COUNTER_PIN);
     GPIO_setOutputLowOnPin(GPIO_COUNTER_PORT, GPIO_COUNTER_PIN);
-    GPIO_setAsOutputPin(GPIO_LAYER_COUNTER_PORT, GPIO_LAYER_COUNTER_PIN);
-    GPIO_setOutputLowOnPin(GPIO_LAYER_COUNTER_PORT, GPIO_LAYER_COUNTER_PIN);
+    for (size_t idx = 0; idx < sizeof(indicators) / sizeof(indicators[0]); idx++) {
+        GPIO_setAsOutputPin(indicators[idx].port, indicators[idx].pin);
+        GPIO_setOutputLowOnPin(indicators[idx].port, indicators[idx].pin);
+    }
     GPIO_setAsInputPinWithPullUpResistor(GPIO_RESET_PORT, GPIO_RESET_PIN);
 
     GPIO_setAsOutputPin( GPIO_PORT_P1, GPIO_PIN0 );
@@ -204,11 +215,15 @@ static void gpio_pulse(uint8_t port, uint16_t pin) {
 }
 
 void notify_layer_finished(void) {
-    my_printf("L" NEWLINE);
-    gpio_pulse(GPIO_LAYER_COUNTER_PORT, GPIO_LAYER_COUNTER_PIN);
+    notify_indicator(0);
 }
 
 void notify_model_finished(void) {
     my_printf("." NEWLINE);
     gpio_pulse(GPIO_COUNTER_PORT, GPIO_COUNTER_PIN);
+}
+
+void notify_indicator(uint8_t idx) {
+    my_printf("I%d" NEWLINE, idx);
+    gpio_pulse(indicators[idx].port, indicators[idx].pin);
 }
