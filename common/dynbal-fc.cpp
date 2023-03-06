@@ -54,7 +54,8 @@ uint16_t UsageSpanFc::nearest_value(uint8_t dim_idx, uint16_t dim_value) const {
 
     my_printf_debug("Finding the nearest local minimum for %d...", dim_value);
     uint16_t tmp = layer_dims.A_cols / dim_value;
-    uint16_t ret = (layer_dims.A_cols / tmp) / 2 * 2;
+    // tile_channel should be multiple of op_filters, see determine_gemm_tile_sizes()
+    uint16_t ret = (layer_dims.A_cols / tmp) / op_filters * op_filters;
     ret = LIMIT_DMA_SIZE(ret);
     return ret;
 }
@@ -83,8 +84,6 @@ void update_progress_indicator_fc(NodeFlags* node_flags, const NodeFlags* orig_f
     if (first_unfinished_value_offset == 0) {
         // Starting a new layer
         if (stats->power_cycle_energy) {
-            // my_printf("%" PRIu32 NEWLINE, stats->power_cycle_energy);
-            // stats->power_cycle_energy = 268362;
             adapt_fc_dynbal(node_flags, orig_flags, &usage_span, layer_dims, stats->power_cycle_energy);
             commit_node_flags(node_flags);
         } else {
