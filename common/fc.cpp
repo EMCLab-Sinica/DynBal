@@ -3,6 +3,8 @@
 #include "cnn_common.h"
 #include "counters.h"
 #include "data.h"
+#include "dynbal-fc.h"
+#include "fc.h"
 #include "platform.h"
 #include "my_debug.h"
 #include "op_utils.h"
@@ -38,7 +40,6 @@ int16_t weights_tmp[512];
 
 void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags* node_flags, const NodeFlags* orig_node_flags) {
     const ParameterInfo *A = input[0], *B = input[1], *matC = input[2];
-    const NodeFlags* flags = node_flags;
 
     my_printf_debug("Gemm! A: (%dx%d), B: (%dx%d)" NEWLINE,
               A->dims[0], A->dims[1], B->dims[0], B->dims[1]);
@@ -79,7 +80,7 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     fix_first_unfinished_value_offset(model, &first_unfinished_value_offset);
 
     tile = first_unfinished_value_offset / output_len;
-    i = tile * flags->gemm.tile_channel;
+    i = tile * node_flags->gemm.tile_channel;
     j_with_footprints = first_unfinished_value_offset % output_len;
 
 #if JAPARI
@@ -91,10 +92,22 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 #endif
 
     stop_cpu_counter();
+
+#if RuntimeConfiguration == DynBal
+    FcLayerDimensions layer_dims;
+    layer_dims.A_rows = A->dims[0];
+    layer_dims.A_cols = A->dims[1];
+    layer_dims.B_cols = B->dims[1];
+    update_progress_indicator_fc(node_flags, orig_node_flags, layer_dims, first_unfinished_value_offset);
 #endif
 
-    for (; i < B->dims[0]; i += flags->gemm.tile_channel, tile++) {
-        const uint16_t tile_channels = MIN_VAL(flags->gemm.tile_channel, B->dims[0] - i);
+    my_printf_debug("tile_channel=%d, OP_FILTERS=%d" NEWLINE, node_flags->gemm.tile_channel, OP_FILTERS);
+    output->params_len = output_len * upper_gauss(B->dims[0], node_flags->gemm.tile_channel) * sizeof(int16_t);
+
+#endif
+
+    for (; i < B->dims[0]; i += node_flags->gemm.tile_channel, tile++) {
+        const uint16_t tile_channels = MIN_VAL(node_flags->gemm.tile_channel, B->dims[0] - i);
         const uint16_t extended_tile_channels = tile_channels + 2;
 
 #if JAPARI
