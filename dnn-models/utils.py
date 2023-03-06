@@ -101,11 +101,16 @@ def find_tensor_value_info(onnx_model: onnx.ModelProto, name: str) -> onnx.Value
             return value_info
     raise ValueError(f'No value_info found for {name}')
 
-def find_node_by_output(nodes: list[onnx.NodeProto], output_name: str) -> onnx.NodeProto:
-    for node in nodes:
+def find_node_and_idx_by_output(nodes: list[onnx.NodeProto], output_name: str) -> tuple[int, Optional[onnx.NodeProto]]:
+    for idx, node in enumerate(nodes):
         for output in node.output:
             if output == output_name:
-                return node
+                return idx, node
+    return -1, None
+
+def find_node_by_output(nodes: list[onnx.NodeProto], output_name: str) -> Optional[onnx.NodeProto]:
+    _, node = find_node_and_idx_by_output(nodes, output_name)
+    return node
 
 def find_node_by_input(nodes: list[onnx.NodeProto], input_name: str) -> onnx.NodeProto:
     for node in nodes:

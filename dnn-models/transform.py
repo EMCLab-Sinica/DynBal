@@ -29,7 +29,7 @@ from utils import (
     find_kernel_shape,
     find_initializer,
     find_node_by_input,
-    find_node_by_output,
+    find_node_and_idx_by_output,
     get_model_ops,
     infer_auto_pad,
     load_model,
@@ -133,8 +133,6 @@ class ONNXNodeWrapper:
     def __init__(self, orig_node: onnx.NodeProto):
         self.orig_node = orig_node
         self.max_output_id = 0
-        self.pState_len = 0
-        self.flags = ffi.new('struct NodeFlags*')
         self.name = orig_node.name or orig_node.output[0] or orig_node.op_type
         self.inputs = []
 
@@ -264,6 +262,9 @@ for n in new_nodes:
         n.input[idx] = replaced_nodes_map.get(inp, inp)
 
 nodes = [ONNXNodeWrapper(n) for n in new_nodes]
+node_flags = ffi.new('struct NodeFlags[]', len(nodes))
+for cur_node_flags in node_flags:
+    cur_node_flags.canary = 0x55
 
 conv_param_names = set()
 
@@ -289,10 +290,10 @@ for idx, n in enumerate(nodes):
         output = n.output
     if n.op_type == 'Conv':
         conv_param_names.add(n.input[1])
-        n.flags.conv.pads = infer_auto_pad(onnx_model, n)
-        n.flags.conv.group = get_attr(n, 'group') or 1
+        node_flags[idx].conv.pads = infer_auto_pad(onnx_model, n)
+        node_flags[idx].conv.group = get_attr(n, 'group') or 1
     if n.op_type in ('Conv', 'MaxPool'):
-        extra_flags = getattr(n.flags, n.op_type.lower())
+        extra_flags = getattr(node_flags[idx], n.op_type.lower())
         kernel_shape = find_kernel_shape(onnx_model, n)
         extra_flags.kernel_shape = kernel_shape
         strides = get_attr(n, 'strides')
@@ -306,36 +307,33 @@ for idx, n in enumerate(nodes):
     if n.op_type == 'MaxPool':
         ceil_mode = get_attr(n, 'ceil_mode')
         if ceil_mode:
-            n.flags.maxpool.ceil = 1
+            node_flags[idx].maxpool.ceil = 1
     if n.op_type == 'Reshape':
         prev_node = n
         while prev_node and prev_node.op_type in INPLACE_UPDATE_OPS:
-            prev_node = find_node_by_output(nodes, prev_node.input[0])
+            prev_node_idx, prev_node = find_node_and_idx_by_output(nodes, prev_node.input[0])
         if prev_node and prev_node.op_type == 'MaxPool':
-            prev_node.flags.maxpool.nhwc2nchw = 1
+            node_flags[prev_node_idx].maxpool.nhwc2nchw = 1
     if n.op_type in ('Squeeze', 'Unsqueeze'):
         axes = get_attr(n, 'axes') or []
-        node_flags = n.flags.squeeze
-        node_flags.axes = 0
+        node_flags[idx].squeeze.axes = 0
         for axis in axes:
-            node_flags.axes |= (1 << axis)
+            node_flags[idx].squeeze.axes |= (1 << axis)
     if n.op_type == 'GemmMerge':
-        n.flags.gemmmerge.tile_length = config['gemm_tile_length']
+        node_flags[idx].gemmmerge.tile_length = config['gemm_tile_length']
     if n.op_type == 'Concat':
-        n.flags.concat.axis = get_attr(n, 'axis')
+        node_flags[idx].concat.axis = get_attr(n, 'axis')
     for output_ in output:
         names[output_] = idx + Constants.N_INPUT
 
 max_output_tile_size = 0
-for n in nodes:
+for idx, n in enumerate(nodes):
     if n.op_type == 'Conv':
-        cur_output_tile_c, _, pState_usage = determine_conv_tile_c(onnx_model, config, Constants.JAPARI, args.target, n)
+        cur_output_tile_c = determine_conv_tile_c(onnx_model, config, Constants.JAPARI, args.target, n,  node_flags[idx].conv)
         max_output_tile_size = max(max_output_tile_size, cur_output_tile_c)
-        n.pState_len = pState_usage
     if n.op_type == 'Gemm':
-        cur_output_tile_c, _, pState_usage = determine_gemm_tile_sizes(onnx_model, config, Constants.BATCH_SIZE, args.target, n)
+        cur_output_tile_c = determine_gemm_tile_sizes(onnx_model, config, Constants.BATCH_SIZE, args.target, n, node_flags[idx].gemm)
         max_output_tile_size = max(max_output_tile_size, cur_output_tile_c)
-        n.pState_len = pState_usage
     n.inputs = [names[i] for i in n.input]
 
 for idx, node in enumerate(nodes):
@@ -346,7 +344,7 @@ for idx, node in enumerate(nodes):
         used_node.max_output_id = max([idx, used_node.max_output_id])
 
 if Constants.STATEFUL:
-    min_range = find_min_range(onnx_model, nodes, config, Constants.N_INPUT)
+    min_range = find_min_range(onnx_model, nodes, node_flags, config, Constants.N_INPUT)
     if min_range < max_output_tile_size:
         Constants.USE_STATES_ARRAY = 1
 
@@ -372,8 +370,9 @@ outputs = {
     'samples': io.BytesIO(),
     'model': io.BytesIO(),
     'nodes': io.BytesIO(),
-    'node_flags': io.BytesIO(),
-    'footprints': io.BytesIO(),
+    'node_flags': [],
+    'node_orig_flags': [],
+    'footprints': [],
     'model_parameters_info': io.BytesIO(),
     'intermediate_parameters_info': io.BytesIO(),
     'labels': io.BytesIO(),
@@ -423,18 +422,16 @@ for node in nodes:
     for _ in range(Constants.NUM_INPUTS - len(node.inputs)):
         output_nodes.write(to_bytes(0))
     output_nodes.write(to_bytes(node.max_output_id))
-    output_nodes.write(to_bytes(node.pState_len))
     output_nodes.write(to_bytes(ops.index(node.op_type)))
-    output_nodes.write(ffi.buffer(node.flags))
 
 footprints_arr = ffi.new('struct Footprint[]', 2 * len(nodes))
-outputs['footprints'].write(ffi.buffer(footprints_arr))
+outputs['footprints'].append(footprints_arr)
 
-output_node_flags = outputs['node_flags']
+outputs['node_orig_flags'].append(node_flags)
+
 # Two copies for shadowing
 for _ in range(2):
-    for node in nodes:
-        output_node_flags.write(ffi.buffer(node.flags))
+    outputs['node_flags'].append(node_flags)
 
 parameter_info_idx = 0
 
@@ -671,11 +668,16 @@ const uint8_t * const {var_name} = _{var_name};
 
     for var_name, data_obj in outputs.items():
         full_var_name = var_name + '_data'
-        data_obj.seek(0)
-        if full_var_name == 'samples_data':
-            data = data_obj.read(2*config['total_sample_size'])
-        else:
-            data = data_obj.read()
+        if isinstance(data_obj, io.BytesIO):
+            data_obj.seek(0)
+            if full_var_name == 'samples_data':
+                data = data_obj.read(2*config['total_sample_size'])
+            else:
+                data = data_obj.read()
+        else:  # a list of ffi objects
+            data = b''
+            for item in data_obj:
+                data += ffi.buffer(item)
         define_var(full_var_name, data)
 
 with open('samples.bin', 'wb') as f:

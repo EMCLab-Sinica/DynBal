@@ -607,7 +607,7 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
     layer_dims->STRIDE_H = conv_params->flags->conv.strides[0];
     layer_dims->STRIDE_W = conv_params->flags->conv.strides[1];
 
-    conv_params->pState_len = node->pState_len;
+    conv_params->pState_len = orig_node_flags->conv.pState_len;
     conv_params->group = conv_params->flags->conv.group;
 
     const uint8_t* pads = conv_params->flags->conv.pads;

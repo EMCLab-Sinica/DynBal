@@ -26,6 +26,10 @@ const Node* get_node(size_t i) {
     return reinterpret_cast<const Node*>(nodes_data) + i;
 }
 
+const NodeFlags* get_node_orig_flags(size_t i) {
+    return reinterpret_cast<const NodeFlags*>(node_orig_flags_data) + i;
+}
+
 const Node* get_node(const ParameterInfo* param) {
     return get_node(param->parameter_info_idx - N_INPUT);
 }
@@ -109,7 +113,7 @@ void my_memcpy_from_param(Model* model, void *dest, const ParameterInfo *param, 
 static void handle_node(Model *model, uint16_t node_idx) {
     const Node *cur_node = get_node(node_idx);
     NodeFlags* cur_node_flags = get_node_flags(node_idx);
-    const NodeFlags* cur_orig_node_flags = &(cur_node->orig_flags);
+    const NodeFlags* cur_orig_node_flags = get_node_orig_flags(node_idx);
 #if MY_DEBUG >= MY_DEBUG_LAYERS
     my_printf("Current node: %d, ", node_idx);
     my_printf("name = %.*s, ", NODE_NAME_LEN, cur_node->name);

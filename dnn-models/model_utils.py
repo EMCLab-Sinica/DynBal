@@ -14,7 +14,7 @@ from utils import (
     OPS_WITH_MERGE,
     find_tensor_value_info,
     find_node_by_input,
-    find_node_by_output,
+    find_node_and_idx_by_output,
 )
 from onnx_utils import (
     dims_from_value_info,
@@ -47,7 +47,7 @@ def get_next_slot(onnx_model: onnx.ModelProto, slots: list[SlotInfo], nodes: lis
     slots[next_slot_id].user = layer_idx
     return next_slot_id
 
-def find_min_range(onnx_model: onnx.ModelProto, nodes: list, config: dict[str, Any], N_INPUT: int):
+def find_min_range(onnx_model: onnx.ModelProto, nodes: list, node_flags, config: dict[str, Any], N_INPUT: int):
     slots = [SlotInfo(user=-1) for _ in range(config['num_slots'])]
     layer_slots = [None] * len(nodes)
     ofm_sizes = [[] for _ in range(config['num_slots'])]
@@ -76,13 +76,13 @@ def find_min_range(onnx_model: onnx.ModelProto, nodes: list, config: dict[str, A
             input_dims = dims_from_value_info(input_value_info)
 
             # find tile input channel
-            wrapped_node = find_node_by_output(nodes, node.output[0])
-            node_flags = getattr(wrapped_node.flags, node.op_type.lower())
+            wrapped_node_idx, wrapped_node = find_node_and_idx_by_output(nodes, node.output[0])
+            cur_node_flags = getattr(node_flags[wrapped_node_idx], node.op_type.lower())
 
             if node.op_type == 'Conv':
-                tile_channel = node_flags.input_tile_c
+                tile_channel = cur_node_flags.input_tile_c
             elif node.op_type == 'Gemm':
-                tile_channel = node_flags.tile_channel
+                tile_channel = cur_node_flags.tile_channel
 
             n_tiles = math.ceil(input_dims[0] / tile_channel)
             ofm_sizes[next_slot_id].append(n_tiles * output_len)

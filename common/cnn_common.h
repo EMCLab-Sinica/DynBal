@@ -21,12 +21,10 @@ typedef struct Node {
     uint16_t inputs_len;
     int16_t inputs[NUM_INPUTS];
     uint16_t max_output_id;
-    uint16_t pState_len;
     uint16_t op_type;
-    const NodeFlags orig_flags;
 } Node;
 
-static_assert(sizeof(Node) == NODE_NAME_LEN * 2 + 24 + NUM_INPUTS * 2, "Unexpected size for Node");
+static_assert(sizeof(Node) == NODE_NAME_LEN * 2 + 6 + NUM_INPUTS * 2, "Unexpected size for Node");
 
 struct Scale {
     int16_t fract;
