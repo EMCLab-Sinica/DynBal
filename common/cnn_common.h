@@ -24,16 +24,9 @@ typedef struct Node {
     uint16_t pState_len;
     uint16_t op_type;
     const NodeFlags orig_flags;
-#if HAWAII
-    struct Footprint {
-        uint16_t value;
-        uint8_t version;
-        uint8_t dummy;
-    } footprint[2];
-#endif
 } Node;
 
-static_assert(sizeof(Node) == NODE_NAME_LEN * 2 + 24 + NUM_INPUTS * 2 + HAWAII * 8, "Unexpected size for Node");
+static_assert(sizeof(Node) == NODE_NAME_LEN * 2 + 24 + NUM_INPUTS * 2, "Unexpected size for Node");
 
 struct Scale {
     int16_t fract;

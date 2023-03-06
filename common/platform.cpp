@@ -12,7 +12,7 @@
 #include "double_buffering.h"
 
 // put offset checks here as extra headers are used
-static_assert(NODES_OFFSET > PARAMETERS_OFFSET + PARAMETERS_DATA_LEN, "Incorrect NVM layout");
+static_assert(FOOTPRINTS_OFFSET > PARAMETERS_OFFSET + PARAMETERS_DATA_LEN, "Incorrect NVM layout");
 
 Model model_vm;
 
@@ -203,44 +203,44 @@ void commit_node_flags(const NodeFlags* node_flags) {
 }
 
 #if HAWAII
-Node::Footprint footprints_vm[MODEL_NODES_LEN];
+Footprint footprints_vm[MODEL_NODES_LEN];
 
 template<>
-uint32_t nvm_addr<Node::Footprint>(uint8_t i, uint16_t layer_idx) {
-    return NODES_OFFSET + layer_idx * sizeof(Node) + offsetof(Node, footprint) + i * sizeof(Node::Footprint);
+uint32_t nvm_addr<Footprint>(uint8_t copy_id, uint16_t layer_idx) {
+    return FOOTPRINTS_OFFSET + (copy_id * MODEL_NODES_LEN + layer_idx) * sizeof(Footprint);
 }
 
 template<>
-Node::Footprint* vm_addr<Node::Footprint>(uint16_t layer_idx) {
+Footprint* vm_addr<Footprint>(uint16_t layer_idx) {
     return &footprints_vm[layer_idx];
 }
 
 template<>
-const char* datatype_name<Node::Footprint>(void) {
+const char* datatype_name<Footprint>(void) {
     return "footprint";
 }
 
 void write_hawaii_layer_footprint(uint16_t layer_idx, int16_t n_jobs) {
-    Node::Footprint* footprint_vm = footprints_vm + layer_idx;
+    Footprint* footprint_vm = footprints_vm + layer_idx;
     footprint_vm->value += n_jobs;
     MY_ASSERT(footprint_vm->value < INTERMEDIATE_VALUES_SIZE);
-    commit_versioned_data<Node::Footprint>(layer_idx);
+    commit_versioned_data<Footprint>(layer_idx);
     my_printf_debug("Write HAWAII layer footprint %d for layer %d" NEWLINE, footprint_vm->value, layer_idx);
     MY_ASSERT(footprint_vm->value % BATCH_SIZE == 0);
 }
 
 uint16_t read_hawaii_layer_footprint(uint16_t layer_idx) {
-    uint16_t footprint = get_versioned_data<Node::Footprint>(layer_idx)->value;
+    uint16_t footprint = get_versioned_data<Footprint>(layer_idx)->value;
     my_printf_debug("HAWAII layer footprint=%d for layer %d" NEWLINE, footprint, layer_idx);
     MY_ASSERT(footprint % BATCH_SIZE == 0);
     return footprint;
 }
 
 void reset_hawaii_layer_footprint(uint16_t layer_idx) {
-    Node::Footprint footprint;
+    Footprint footprint;
     footprint.value = footprint.version = 0;
-    write_to_nvm(&footprint, nvm_addr<Node::Footprint>(0, layer_idx), sizeof(Node::Footprint));
-    write_to_nvm(&footprint, nvm_addr<Node::Footprint>(1, layer_idx), sizeof(Node::Footprint));
+    write_to_nvm(&footprint, nvm_addr<Footprint>(0, layer_idx), sizeof(Footprint));
+    write_to_nvm(&footprint, nvm_addr<Footprint>(1, layer_idx), sizeof(Footprint));
     my_printf_debug("Reset HAWAII layer footprint for layer %d" NEWLINE, layer_idx);
 }
 #endif

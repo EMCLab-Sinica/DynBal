@@ -55,3 +55,9 @@ struct NodeFlags {
 };
 
 static_assert(sizeof(struct NodeFlags) == NODE_FLAGS_SIZE + 2, "Unexpected size for NodeFlags");
+
+struct Footprint {
+    uint16_t value;
+    uint8_t version;
+    uint8_t dummy;
+};

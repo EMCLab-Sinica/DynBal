@@ -23,6 +23,7 @@
 // Generated node_flags_data already contains two copies for shadowing, so there is no need to multiply the size by 2 here
 #define NODE_FLAGS_OFFSET (INTERMEDIATE_PARAMETERS_INFO_OFFSET - NODE_FLAGS_DATA_LEN)
 #define NODES_OFFSET (NODE_FLAGS_OFFSET - NODES_DATA_LEN)
+#define FOOTPRINTS_OFFSET (NODES_OFFSET - FOOTPRINTS_DATA_LEN)
 
 struct ParameterInfo;
 struct Model;

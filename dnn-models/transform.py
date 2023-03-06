@@ -373,6 +373,7 @@ outputs = {
     'model': io.BytesIO(),
     'nodes': io.BytesIO(),
     'node_flags': io.BytesIO(),
+    'footprints': io.BytesIO(),
     'model_parameters_info': io.BytesIO(),
     'intermediate_parameters_info': io.BytesIO(),
     'labels': io.BytesIO(),
@@ -413,12 +414,6 @@ def write_str(buffer: io.BytesIO, data: str):
     assert Constants.NODE_NAME_LEN >= len(data), f'String too long: {data}'
     buffer.write(data.encode('ascii') + b'\0' * (Constants.NODE_NAME_LEN - len(data)))
 
-def write_node_flags(output, node):
-    for idx in range(ffi.sizeof(node.flags.as_bytes)):
-        output.write(to_bytes(node.flags.as_bytes[idx], size=8))
-    output.write(to_bytes(0x55, size=8))  # NodeFlags.canary
-    output.write(to_bytes(0, size=8))  # NodeFlags.version
-
 for node in nodes:
     write_str(output_nodes, node.name)
     write_str(output_nodes, node.output[0])
@@ -430,16 +425,16 @@ for node in nodes:
     output_nodes.write(to_bytes(node.max_output_id))
     output_nodes.write(to_bytes(node.pState_len))
     output_nodes.write(to_bytes(ops.index(node.op_type)))
-    write_node_flags(output_nodes, node)
-    if Constants.HAWAII:
-        for _ in range(2):
-            output_nodes.write(to_bytes(0, size=32))  # Node::Footprint
+    output_nodes.write(ffi.buffer(node.flags))
+
+footprints_arr = ffi.new('struct Footprint[]', 2 * len(nodes))
+outputs['footprints'].write(ffi.buffer(footprints_arr))
 
 output_node_flags = outputs['node_flags']
 # Two copies for shadowing
 for _ in range(2):
     for node in nodes:
-        write_node_flags(output_node_flags, node)
+        output_node_flags.write(ffi.buffer(node.flags))
 
 parameter_info_idx = 0
 
