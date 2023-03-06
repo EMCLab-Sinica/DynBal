@@ -71,6 +71,7 @@ class Constants:
     N_INPUT = 0
     # Match the size of external FRAM
     NVM_SIZE = 512 * 1024
+    INTERMEDIATE_VALUES_SIZE = 0  # will be filled by nvm_layout()
     N_SAMPLES = 20
     LEA_BUFFER_SIZE = 0
     OUTPUT_LEN = OUTPUT_LEN
@@ -193,7 +194,6 @@ if args.hawaii:
 if args.japari:
     Constants.JAPARI = 1
     Constants.METHOD = "JAPARI"
-    config['intermediate_values_size'] *= 2
 Constants.INTERMITTENT = Constants.STATEFUL | Constants.HAWAII | Constants.JAPARI
 Constants.INDIRECT_RECOVERY = Constants.STATEFUL | Constants.JAPARI
 if args.target == 'msp432':
@@ -326,27 +326,13 @@ for idx, n in enumerate(nodes):
     for output_ in output:
         names[output_] = idx + Constants.N_INPUT
 
-max_output_tile_size = 0
-for idx, n in enumerate(nodes):
-    if n.op_type == 'Conv':
-        cur_output_tile_c = determine_conv_tile_c(onnx_model, config, Constants.JAPARI, args.target, n,  node_flags[idx].conv)
-        max_output_tile_size = max(max_output_tile_size, cur_output_tile_c)
-    if n.op_type == 'Gemm':
-        cur_output_tile_c = determine_gemm_tile_sizes(onnx_model, config, Constants.BATCH_SIZE, args.target, n, node_flags[idx].gemm)
-        max_output_tile_size = max(max_output_tile_size, cur_output_tile_c)
-    n.inputs = [names[i] for i in n.input]
-
 for idx, node in enumerate(nodes):
+    node.inputs = [names[i] for i in node.input]
     for inp in node.inputs:
         if inp < Constants.N_INPUT:
             continue
         used_node = nodes[inp - Constants.N_INPUT]
         used_node.max_output_id = max([idx, used_node.max_output_id])
-
-if Constants.STATEFUL:
-    min_range = find_min_range(onnx_model, nodes, node_flags, config, Constants.N_INPUT)
-    if min_range < max_output_tile_size:
-        Constants.USE_STATES_ARRAY = 1
 
 parameters = [None for _ in range(Constants.N_INPUT)]
 
@@ -373,6 +359,7 @@ outputs = {
     'node_flags': [],
     'node_orig_flags': [],
     'footprints': [],
+    'inference_stats': [],
     'model_parameters_info': io.BytesIO(),
     'intermediate_parameters_info': io.BytesIO(),
     'labels': io.BytesIO(),
@@ -426,6 +413,9 @@ for node in nodes:
 
 footprints_arr = ffi.new('struct Footprint[]', 2 * len(nodes))
 outputs['footprints'].append(footprints_arr)
+
+inference_stats_arr = ffi.new('struct InferenceStats[]', 2)
+outputs['inference_stats'].append(inference_stats_arr)
 
 outputs['node_orig_flags'].append(node_flags)
 
@@ -549,6 +539,39 @@ if args.write_images:
     with open('images/ans.txt', 'w') as f:
         f.write(' '.join(map(str, labels)))
 
+def nvm_layout():
+    # See common/platform.h; some items are duplicated for double buffering
+    nvm_data_names = ['inference_stats', 'model', 'model', 'intermediate_parameters_info', 'node_flags', 'nodes', 'footprints', 'parameters']
+    remaining_size = Constants.NVM_SIZE - 256
+    for data_name in nvm_data_names:
+        if isinstance(outputs[data_name], io.BytesIO):
+            cur_data_size = outputs[data_name].tell()
+        else:
+            cur_data_size = sum(ffi.sizeof(item) for item in outputs[data_name])
+        logger.debug('Data size for %s: %d', data_name, cur_data_size)
+        remaining_size -= cur_data_size
+    # Size for samples are different for plat-pc and plat-mcu
+    remaining_size -= 2*config['total_sample_size']
+    # intermediate_values_size should < 65536, or TI's compiler gets confused
+    Constants.INTERMEDIATE_VALUES_SIZE = min(int((remaining_size / config['num_slots']) / 16) * 16, 65534)
+    logger.debug('INTERMEDIATE_VALUES_SIZE=%d', Constants.INTERMEDIATE_VALUES_SIZE)
+
+nvm_layout()
+
+max_output_tile_size = 0
+for idx, n in enumerate(nodes):
+    if n.op_type == 'Conv':
+        cur_output_tile_c = determine_conv_tile_c(onnx_model, config, Constants.JAPARI, Constants.INTERMEDIATE_VALUES_SIZE, args.target, n,  node_flags[idx].conv)
+        max_output_tile_size = max(max_output_tile_size, cur_output_tile_c)
+    if n.op_type == 'Gemm':
+        cur_output_tile_c = determine_gemm_tile_sizes(onnx_model, config, Constants.BATCH_SIZE, args.target, n, node_flags[idx].gemm)
+        max_output_tile_size = max(max_output_tile_size, cur_output_tile_c)
+
+if Constants.STATEFUL:
+    min_range = find_min_range(onnx_model, nodes, node_flags, config, Constants.N_INPUT)
+    if min_range < max_output_tile_size:
+        Constants.USE_STATES_ARRAY = 1
+
 pathlib.Path(args.data_output_dir).mkdir(exist_ok=True)
 
 with open(f'{args.data_output_dir}/data.cpp', 'w') as output_c, open(f'{args.data_output_dir}/data.h', 'w') as output_h:
@@ -575,7 +598,7 @@ struct NodeFlags;
                 continue
         # Making it long to avoid overflow for expressions like
         # INTERMEDIATE_VALUES_SIZE * NUM_SLOTS on 16-bit systems
-        suffix = 'l' if item == 'intermediate_values_size' else ''
+        suffix = 'l' if item == 'INTERMEDIATE_VALUES_SIZE' else ''
         output_h.write(f'#define {item.upper()} ')
         if isinstance(val, str):
             output_h.write(f'"{val}"')

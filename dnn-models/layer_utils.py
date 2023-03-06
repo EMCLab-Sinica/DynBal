@@ -22,7 +22,7 @@ logger = logging.getLogger('intermittent-cnn.layer_utils')
 def extend_for_footprints(batch_size, n):
     return n + n // batch_size
 
-def determine_conv_tile_c(onnx_model: onnx.ModelProto, config: dict[str, Any], is_japari, target, node, conv_flags):
+def determine_conv_tile_c(onnx_model: onnx.ModelProto, config: dict[str, Any], is_japari, intermediate_values_size, target, node, conv_flags):
     logger.debug('Determine tile size for Conv node %s', node.name)
 
     output_value_info = find_tensor_value_info(onnx_model, node.output[0])
@@ -86,7 +86,7 @@ def determine_conv_tile_c(onnx_model: onnx.ModelProto, config: dict[str, Any], i
 
         if not input_tile_too_large:
             params_len = math.ceil(CHANNEL / conv_flags.input_tile_c) * OUTPUT_CHANNEL * OUTPUT_H * OUTPUT_W * 2
-            if params_len <= config['intermediate_values_size']:
+            if params_len <= intermediate_values_size:
                 break
             logger.debug(f'params_len={params_len}, too high!')
         assert conv_flags.input_tile_c // 2 * 2 == conv_flags.input_tile_c

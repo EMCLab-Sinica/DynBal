@@ -16,15 +16,12 @@ vm_size = {
     'msp432': 26704,  # includes space for pState
 }
 
-# intermediate_values_size should < 65536, or TI's compiler gets confused
 configs = {
     'cifar10': {
         'onnx_model': 'squeezenet_cifar10',
         'scale': 2,
         'input_scale': 10,
         'num_slots': 3,
-        # 1st conv output = (15*15*64)*sizeof(int16_t)
-        'intermediate_values_size': 28800,
         'data_loader': load_data_cifar10,
         'n_all_samples': 10000,
         'op_filters': 2,
@@ -34,8 +31,6 @@ configs = {
         'scale': 2,
         'input_scale': 10,
         'num_slots': 2,
-        # 1st conv output = (30*30*32)*sizeof(int16_t)
-        'intermediate_values_size': 57600,
         'data_loader': load_data_cifar10,
         'n_all_samples': 10000,
         'op_filters': 2,
@@ -45,8 +40,6 @@ configs = {
         'scale': 1,
         'input_scale': 120,
         'num_slots': 2,
-        # 1st fc output = (1*144*2)*sizeof(int16_t), N/T_n=2
-        'intermediate_values_size': 576,
         'data_loader': load_data_google_speech,
         'n_all_samples': 4890,
         'op_filters': 4,
@@ -56,8 +49,6 @@ configs = {
         'scale': 2,
         'input_scale': 16,
         'num_slots': 2,
-        # 3rd conv output = (128*18)*sizeof(int16_t), N/T_n=2 for MSP430/JAPARI/B=1
-        'intermediate_values_size': 9216,
         'data_loader': load_har,
         'n_all_samples': 2947,
         'op_filters': 4,

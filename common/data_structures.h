@@ -63,3 +63,10 @@ struct Footprint {
     uint8_t version;
     uint8_t dummy;
 };
+
+struct InferenceStats {
+    uint32_t last_progress_indicator;
+    uint32_t power_cycle_energy;
+    uint8_t dummy[3];
+    uint8_t version;
+};

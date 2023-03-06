@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include "data_structures.h"
 
 #define Fixed 0
 #define DynBal 1
@@ -17,12 +18,6 @@ public:
 
 uint16_t convex_search(const UsageSpan* usage_span, uint8_t dim_idx, const uint16_t value_ranges[][2]);
 
-struct InferenceStats {
-    uint32_t last_progress_indicator;
-    uint32_t power_cycle_energy;
-    uint8_t dummy[3];
-    uint8_t version;
-};
 extern InferenceStats inference_stats_vm[2];
 
 enum class InferenceStatsOpType {
