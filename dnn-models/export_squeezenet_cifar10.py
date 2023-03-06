@@ -1,6 +1,7 @@
 import pathlib
 
 import onnx
+import onnx.shape_inference
 import tensorflow as tf
 import tf2onnx.convert
 
@@ -19,6 +20,8 @@ def main():
     onnx_model, _ = tf2onnx.convert.from_keras(model, opset=11)
 
     onnx_model = remove_tensorflow_input_transpose(onnx_model)
+
+    onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
 
     onnx.save(onnx_model, models_dir / 'squeezenet_cifar10.onnx')
 
