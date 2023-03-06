@@ -12,6 +12,7 @@ from utils import (
     find_tensor_value_info,
 )
 from configs import (
+    ARM_PSTATE_LEN,
     OUTPUT_LEN,
     vm_size,
 )
@@ -70,8 +71,12 @@ def determine_conv_tile_c(onnx_model: onnx.ModelProto, config: dict[str, Any], i
             total_vm_usage = tile_input_usage + pState_usage
             logger.debug('Checking output_tile_c=%d, filter_len=%d, tile_input_usage=%d, pState_usage=%d, total_vm_usage=%d',
                          output_tile_c, filter_len, tile_input_usage, pState_usage, total_vm_usage)
-            if total_vm_usage <= vm_size[target] - OUTPUT_LEN:
-                break
+            if ARM_PSTATE_LEN is not None and target == 'msp432':
+                if tile_input_usage <= vm_size[target] - OUTPUT_LEN - ARM_PSTATE_LEN and pState_usage <= ARM_PSTATE_LEN:
+                    break
+            else:
+                if total_vm_usage <= vm_size[target] - OUTPUT_LEN:
+                    break
             logger.debug('output_tile_c=%d', output_tile_c)
             output_tile_c //= 2
             if output_tile_c % 2 or output_tile_c < config['op_filters']:
@@ -126,8 +131,12 @@ def determine_gemm_tile_sizes(onnx_model: onnx.ModelProto, config: dict[str, Any
             total_vm_usage = tile_input_usage + pState_usage
             logger.debug("tile_channel=%d, tile_input_usage=%d, pState_usage=%d, total_vm_usage=%d",
                          node_flags.tile_channel, tile_input_usage, pState_usage, total_vm_usage)
-            if total_vm_usage <= vm_size[target]:
-                break
+            if ARM_PSTATE_LEN is not None and target == 'msp432':
+                if tile_input_usage <= vm_size[target] - ARM_PSTATE_LEN and pState_usage <= ARM_PSTATE_LEN:
+                    break
+            else:
+                if total_vm_usage <= vm_size[target]:
+                    break
             node_flags.tile_channel -= tile_size_unit
         logger.debug("tile_channel = %d", node_flags.tile_channel)
         if node_flags.tile_channel > 0:

@@ -4,6 +4,7 @@ from datasets import (
     load_har,
 )
 
+ARM_PSTATE_LEN = None
 # Acceleration output buffer size
 # TODO: make these adjustable on runtime
 OUTPUT_LEN = 256
