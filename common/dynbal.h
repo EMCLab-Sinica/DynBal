@@ -6,7 +6,7 @@
 #define Fixed 0
 #define DynBal 1
 #define Exhaustive 2
-#define RuntimeConfiguration Fixed
+#define RuntimeConfiguration DynBal
 
 const uint32_t NVM_RELATIVE_WRITE_COST = 1; // the ratio of NVM write cost and NVM read cost
 
