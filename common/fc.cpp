@@ -176,7 +176,7 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
             for (uint16_t idx = 0; idx < values_to_preserve; idx++) {
                 if (processed_biases == BATCH_SIZE) {
                     processed_biases = 0;
-                    filter_ptr[idx] = param_state_bit(model, output, output_offset);
+                    filter_ptr[idx] = param_state_bit(model, output, output_offset + idx);
                 } else {
                     if (tile == 0) {
                         filter_ptr[idx] = -static_cast<int32_t>(get_q15_param(model, matC, bias_offset + j)) / A->scale.toFloat();
