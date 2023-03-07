@@ -54,8 +54,8 @@ uint16_t UsageSpanFc::nearest_value(uint8_t dim_idx, uint16_t dim_value) const {
 
     my_printf_debug("Finding the nearest local minimum for %d...", dim_value);
     uint16_t tmp = layer_dims.A_cols / dim_value;
-    // tile_channel should be multiple of tile_width, see determine_gemm_tile_sizes()
-    uint16_t ret = (layer_dims.A_cols / tmp) / tile_width * tile_width;
+    // tile_channel should be multiple of op_filters, see determine_gemm_tile_sizes()
+    uint16_t ret = (layer_dims.A_cols / tmp) / OP_FILTERS * OP_FILTERS;
     ret = LIMIT_DMA_SIZE(ret);
     return ret;
 }

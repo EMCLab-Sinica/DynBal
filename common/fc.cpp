@@ -103,6 +103,7 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 
     my_printf_debug("tile_channel=%d, tile_width=%d" NEWLINE, node_flags->gemm.tile_channel, node_flags->gemm.tile_width);
     output->params_len = output_len * upper_gauss(B->dims[0], node_flags->gemm.tile_channel) * sizeof(int16_t);
+    MY_ASSERT(node_flags->gemm.tile_width / BATCH_SIZE * BATCH_SIZE == node_flags->gemm.tile_width);
 
 #endif
 
