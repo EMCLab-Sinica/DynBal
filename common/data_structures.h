@@ -22,7 +22,7 @@ struct MaxPoolFlags {
 
 struct GemmNodeFlags {
     uint16_t tile_channel;
-    uint16_t op_filters;
+    uint16_t tile_width;
     uint16_t pState_len;
 };
 

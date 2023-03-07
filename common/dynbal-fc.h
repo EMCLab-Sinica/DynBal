@@ -8,10 +8,10 @@ class NodeFlags;
 
 class UsageSpanFc : public UsageSpan {
 public:
-    UsageSpanFc(const FcLayerDimensions& _layer_dims, uint16_t _tile_channel, uint16_t _op_filters, uint32_t _power_cycle_energy)
+    UsageSpanFc(const FcLayerDimensions& _layer_dims, uint16_t _tile_channel, uint16_t _tile_width, uint32_t _power_cycle_energy)
         : layer_dims(_layer_dims)
         , tile_channel(_tile_channel)
-        , op_filters(_op_filters)
+        , tile_width(_tile_width)
         , power_cycle_energy(_power_cycle_energy)
     {}
     uint32_t calc(uint8_t dim_idx, uint16_t dim_value) const;
@@ -19,12 +19,12 @@ public:
 
     enum ParameterDimension {
         TileChannel,
-        OpFilters,
+        TileWidth,
     };
 private:
     const FcLayerDimensions& layer_dims;
     uint16_t tile_channel;
-    uint16_t op_filters;
+    uint16_t tile_width;
     uint32_t power_cycle_energy;
 };
 

@@ -52,10 +52,10 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 #if JAPARI
     start_cpu_counter(offsetof(Counters, embedding));
     buffer_temp += 2;
-    int16_t* buffer_b = buffer_temp + extend_for_footprints(OP_FILTERS);
+    int16_t* buffer_b = buffer_temp + extend_for_footprints(node_flags->gemm.tile_width);
     stop_cpu_counter();
 #else
-    int16_t* buffer_b = buffer_temp + OP_FILTERS;
+    int16_t* buffer_b = buffer_temp + node_flags->gemm.tile_width;
 #endif
     make_buffer_aligned(&buffer_b);
 
@@ -101,7 +101,7 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     update_progress_indicator_fc(node_flags, orig_node_flags, layer_dims, first_unfinished_value_offset);
 #endif
 
-    my_printf_debug("tile_channel=%d, OP_FILTERS=%d" NEWLINE, node_flags->gemm.tile_channel, OP_FILTERS);
+    my_printf_debug("tile_channel=%d, tile_width=%d" NEWLINE, node_flags->gemm.tile_channel, node_flags->gemm.tile_width);
     output->params_len = output_len * upper_gauss(B->dims[0], node_flags->gemm.tile_channel) * sizeof(int16_t);
 
 #endif
@@ -144,14 +144,8 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 
         int16_t output_offset = tile * output_len + j_with_footprints;
 
-        for (; j < B->dims[1]; j += OP_FILTERS) {
-            int16_t tile_width;
-            // this variable is used only for JAPARI. Don't use [[maybe_unused]] until TI CGT support C++17.
-            if (OP_FILTERS > B->dims[1] - j) {
-                tile_width = B->dims[1] - j;
-            } else {
-                tile_width = OP_FILTERS;
-            }
+        for (; j < B->dims[1]; j += node_flags->gemm.tile_width) {
+            int16_t tile_width = MIN_VAL(node_flags->gemm.tile_width, B->dims[1] - j);
             int16_t values_to_preserve = tile_width,
                     full_tile_width = tile_width;
 #if JAPARI

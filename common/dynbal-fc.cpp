@@ -10,7 +10,7 @@
 #include "my_debug.h"
 
 // tile_channel: convex
-// op_filters: monotonic
+// tile_width: monotonic
 
 uint32_t UsageSpanFc::calc(uint8_t dim_idx, uint16_t dim_value) const {
     uint32_t n_input_values, n_filter_values;
@@ -18,7 +18,7 @@ uint32_t UsageSpanFc::calc(uint8_t dim_idx, uint16_t dim_value) const {
     uint8_t n_tiles_c;
 
     uint16_t cur_tile_channel = (dim_idx == ParameterDimension::TileChannel) ? dim_value : tile_channel;
-    uint16_t cur_op_filters = (dim_idx == ParameterDimension::OpFilters) ? dim_value : op_filters;
+    uint16_t cur_tile_width = (dim_idx == ParameterDimension::TileWidth) ? dim_value : tile_width;
     n_input_values = layer_dims.A_rows * layer_dims.A_cols;
     n_filter_values = layer_dims.A_cols * layer_dims.B_cols;
     n_tiles_c = upper_gauss(layer_dims.A_cols, cur_tile_channel);
@@ -38,7 +38,7 @@ uint32_t UsageSpanFc::calc(uint8_t dim_idx, uint16_t dim_value) const {
     // Data refetch cost
     // TODO: compare with counters
     uint32_t input_cost, filter_cost, data_refetch_cost, usage_span;
-    input_cost = cur_tile_channel * cur_op_filters;
+    input_cost = cur_tile_channel * cur_tile_width;
     filter_cost = cur_tile_channel;
     // memory costs?
     data_refetch_cost = (input_cost * n_input_values + filter_cost * n_filter_values) / power_cycle_energy;
@@ -50,12 +50,12 @@ uint32_t UsageSpanFc::calc(uint8_t dim_idx, uint16_t dim_value) const {
 }
 
 uint16_t UsageSpanFc::nearest_value(uint8_t dim_idx, uint16_t dim_value) const {
-    MY_ASSERT(dim_idx == ParameterDimension::TileChannel); // TODO: support OpFilters
+    MY_ASSERT(dim_idx == ParameterDimension::TileChannel); // TODO: support TileWidth
 
     my_printf_debug("Finding the nearest local minimum for %d...", dim_value);
     uint16_t tmp = layer_dims.A_cols / dim_value;
-    // tile_channel should be multiple of op_filters, see determine_gemm_tile_sizes()
-    uint16_t ret = (layer_dims.A_cols / tmp) / op_filters * op_filters;
+    // tile_channel should be multiple of tile_width, see determine_gemm_tile_sizes()
+    uint16_t ret = (layer_dims.A_cols / tmp) / tile_width * tile_width;
     ret = LIMIT_DMA_SIZE(ret);
     return ret;
 }
@@ -64,10 +64,10 @@ static void adapt_fc_dynbal(NodeFlags* node_flags, const NodeFlags* orig_flags, 
     uint32_t output_len = layer_dims.A_rows * layer_dims.B_cols;
     uint16_t tile_channel_upper = orig_flags->gemm.tile_channel,
              tile_channel_lower = MAX_VAL(2, output_len * sizeof(int16_t) * layer_dims.A_cols / INTERMEDIATE_VALUES_SIZE);
-    uint16_t op_filters_upper = orig_flags->gemm.op_filters, op_filters_lower = 2;
+    uint16_t tile_width_upper = orig_flags->gemm.tile_width, tile_width_lower = 2;
     const uint16_t value_ranges[2][2] = {
         { tile_channel_lower, tile_channel_upper },
-        { op_filters_lower, op_filters_upper },
+        { tile_width_lower, tile_width_upper },
     };
     uint8_t dim_idx = UsageSpanFc::ParameterDimension::TileChannel;
     uint16_t new_tile_channel = convex_search(usage_span, dim_idx, value_ranges);
@@ -79,7 +79,7 @@ static void adapt_fc_dynbal(NodeFlags* node_flags, const NodeFlags* orig_flags, 
 void update_progress_indicator_fc(NodeFlags* node_flags, const NodeFlags* orig_flags, const FcLayerDimensions& layer_dims, uint32_t first_unfinished_value_offset) {
     InferenceStats* stats = load_inference_stats_from_nvm(InferenceStatsOpType::FC);
 
-    const UsageSpanFc usage_span(layer_dims, orig_flags->gemm.tile_channel, orig_flags->gemm.op_filters, stats->power_cycle_energy);
+    const UsageSpanFc usage_span(layer_dims, orig_flags->gemm.tile_channel, orig_flags->gemm.tile_width, stats->power_cycle_energy);
 
     if (first_unfinished_value_offset == 0) {
         // Starting a new layer
