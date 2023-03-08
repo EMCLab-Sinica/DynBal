@@ -6,6 +6,7 @@
 #include "cnn_common.h"
 #include "counters.h"
 #include "data.h"
+#include "layers.h"
 #include "my_debug.h"
 #include "op_utils.h"
 #include "platform.h"

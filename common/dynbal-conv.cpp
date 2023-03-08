@@ -3,6 +3,7 @@
 #include "cnn_common.h"
 #include "conv.h"
 #include "dynbal-conv.h"
+#include "layers.h"
 #include "my_debug.h"
 #include "op_utils.h"
 

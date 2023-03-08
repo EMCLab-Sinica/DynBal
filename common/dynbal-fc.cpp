@@ -6,6 +6,7 @@
 #include "data_structures.h"
 #include "dynbal-fc.h"
 #include "fc.h"
+#include "layers.h"
 #include "op_utils.h"
 #include "my_debug.h"
 

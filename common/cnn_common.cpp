@@ -6,6 +6,7 @@
 #include "counters.h"
 #include "data.h"
 #include "intermittent-cnn.h"
+#include "layers.h"
 #include "my_debug.h"
 #include "my_dsplib.h"
 #include "op_utils.h"
@@ -20,18 +21,6 @@ const ParameterInfo* get_parameter_info(uint16_t i) {
     } else {
         return get_intermediate_parameter_info(i - N_INPUT);
     }
-}
-
-const Node* get_node(size_t i) {
-    return reinterpret_cast<const Node*>(nodes_data) + i;
-}
-
-const NodeFlags* get_node_orig_flags(size_t i) {
-    return reinterpret_cast<const NodeFlags*>(node_orig_flags_data) + i;
-}
-
-const Node* get_node(const ParameterInfo* param) {
-    return get_node(param->parameter_info_idx - N_INPUT);
 }
 
 SlotInfo* get_slot_info(Model* model, uint8_t i) {
