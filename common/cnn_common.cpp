@@ -253,7 +253,7 @@ static void run_model(int8_t *ansptr, const ParameterInfo **output_node_ptr) {
 
     my_max_q15(lea_buffer, buffer_len, &max, &u_ans);
 #if JAPARI
-    u_ans = u_ans / (BATCH_SIZE + 1) * BATCH_SIZE + u_ans % (BATCH_SIZE + 1);
+    u_ans = offset_without_footprints(u_ans);
 #endif
     *ansptr = u_ans;
 #endif

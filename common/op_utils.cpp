@@ -36,6 +36,10 @@ int16_t extend_for_footprints(int16_t val, uint8_t force_aligned) {
     return val + val / BATCH_SIZE;
 }
 
+int16_t offset_without_footprints(int16_t offset) {
+    return offset / (BATCH_SIZE + 1) * BATCH_SIZE + offset % (BATCH_SIZE + 1);
+}
+
 uint8_t has_footprints(const ParameterInfo *cur_param) {
     return (cur_param->slot < NUM_SLOTS);
 }

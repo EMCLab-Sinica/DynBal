@@ -28,6 +28,7 @@ void hawaii_record_footprints(Model* model, uint16_t vector_len);
 
 extern int16_t input_buffer_with_footprints[INPUT_BUFFER_WITH_FOOTPRINTS_LEN];
 int16_t extend_for_footprints(int16_t val, uint8_t force_aligned = 0);
+int16_t offset_without_footprints(int16_t offset);
 uint8_t has_footprints(const ParameterInfo* cur_param);
 #endif
 
