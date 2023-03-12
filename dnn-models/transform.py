@@ -553,7 +553,9 @@ def nvm_layout():
     # Size for samples are different for plat-pc and plat-mcu
     remaining_size -= 2*config['total_sample_size']
     # intermediate_values_size should < 65536, or TI's compiler gets confused
-    Constants.INTERMEDIATE_VALUES_SIZE = min(int((remaining_size / config['num_slots']) / 16) * 16, 65534)
+    Constants.INTERMEDIATE_VALUES_SIZE = int((remaining_size / config['num_slots']) / 16) * 16
+    if args.target == 'msp430':
+        Constants.INTERMEDIATE_VALUES_SIZE = min(Constants.INTERMEDIATE_VALUES_SIZE, 65534)
     logger.debug('INTERMEDIATE_VALUES_SIZE=%d', Constants.INTERMEDIATE_VALUES_SIZE)
 
 nvm_layout()
