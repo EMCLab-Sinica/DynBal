@@ -14,6 +14,7 @@
 
 ParameterInfo intermediate_parameters_info_vm[MODEL_NODES_LEN];
 uint16_t sample_idx;
+uint16_t inference_layer_idx = 0;
 
 const ParameterInfo* get_parameter_info(uint16_t i) {
     if (i < N_INPUT) {
@@ -132,7 +133,15 @@ static void handle_node(Model *model, uint16_t node_idx) {
 #if STATEFUL
     my_printf_debug("Old output state bit=%d" NEWLINE, get_state_bit(model, output->slot));
 #endif
+
+#if SINGLE_LAYER_MODE
+    if (node_idx == inference_layer_idx) {
+        handlers[cur_node->op_type](model, input, output, cur_node, cur_node_flags, cur_orig_node_flags);
+    }
+#else
     handlers[cur_node->op_type](model, input, output, cur_node, cur_node_flags, cur_orig_node_flags);
+#endif
+
 #if ENABLE_COUNTERS
     MY_ASSERT(counters_cleared());
 #endif
@@ -216,6 +225,7 @@ static void run_model(int8_t *ansptr, const ParameterInfo **output_node_ptr) {
     }
 #endif
 
+#if CHECK_OUTPUT
     if (sample_idx == 0) {
         float output_max = 0;
         for (uint8_t buffer_idx = 0; buffer_idx < ans_len; buffer_idx++) {
@@ -239,6 +249,7 @@ static void run_model(int8_t *ansptr, const ParameterInfo **output_node_ptr) {
             }
         }
     }
+#endif
 
     my_max_q15(lea_buffer, buffer_len, &max, &u_ans);
 #if JAPARI
