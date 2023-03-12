@@ -4,8 +4,6 @@
 #include "tools/ext_fram/extfram.h"
 #include <stdint.h>
 
-#define PLAT_LABELS_DATA_LEN 1
-
 #ifdef __MSP430__
 #include <DSPLib.h>
 static inline void plat_start_cpu_counter(void) {

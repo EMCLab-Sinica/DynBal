@@ -12,7 +12,7 @@
 #include "double_buffering.h"
 
 // put offset checks here as extra headers are used
-static_assert(FOOTPRINTS_OFFSET > PARAMETERS_OFFSET + PARAMETERS_DATA_LEN, "Incorrect NVM layout");
+static_assert(FOOTPRINTS_OFFSET >= PARAMETERS_OFFSET + PARAMETERS_DATA_LEN, "Incorrect NVM layout");
 
 Model model_vm;
 
@@ -81,7 +81,7 @@ void read_from_samples(void *dest, uint16_t offset_in_word, size_t n) {
         my_printf_debug("Recorded %lu bytes of samples fetched from NVM, accumulated=%" PRIu32 NEWLINE, n, counters()->nvm_read_job_outputs);
     }
 #endif
-    read_from_nvm(dest, SAMPLES_OFFSET + (sample_idx % PLAT_LABELS_DATA_LEN) * 2*TOTAL_SAMPLE_SIZE + offset_in_word * sizeof(int16_t), n);
+    read_from_nvm(dest, SAMPLES_OFFSET + (sample_idx % LABELS_DATA_LEN) * 2*TOTAL_SAMPLE_SIZE + offset_in_word * sizeof(int16_t), n);
 }
 
 ParameterInfo* get_intermediate_parameter_info(uint16_t i) {

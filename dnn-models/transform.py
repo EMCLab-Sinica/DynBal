@@ -71,8 +71,9 @@ class Constants:
     N_INPUT = 0
     # Match the size of external FRAM
     NVM_SIZE = 512 * 1024
+    ORIG_NVM_SIZE = NVM_SIZE
     INTERMEDIATE_VALUES_SIZE = 0  # will be filled by nvm_layout()
-    N_SAMPLES = 20
+    N_SAMPLES = 1
     LEA_BUFFER_SIZE = 0
     OUTPUT_LEN = OUTPUT_LEN
     USE_ARM_CMSIS = 0
@@ -542,7 +543,7 @@ if args.write_images:
 def nvm_layout():
     # See common/platform.h; some items are duplicated for double buffering
     nvm_data_names = ['inference_stats', 'model', 'model', 'intermediate_parameters_info', 'node_flags', 'nodes', 'footprints', 'parameters']
-    remaining_size = Constants.NVM_SIZE - 256
+    remaining_size = Constants.ORIG_NVM_SIZE - 256
     for data_name in nvm_data_names:
         if isinstance(outputs[data_name], io.BytesIO):
             cur_data_size = outputs[data_name].tell()

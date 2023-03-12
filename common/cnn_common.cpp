@@ -266,7 +266,7 @@ uint8_t run_cnn_tests(uint16_t n_samples) {
     int8_t label = -1;
     uint32_t correct = 0, total = 0;
     if (!n_samples) {
-        n_samples = PLAT_LABELS_DATA_LEN;
+        n_samples = LABELS_DATA_LEN;
     }
     const uint8_t *labels = labels_data;
 #endif
