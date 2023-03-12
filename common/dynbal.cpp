@@ -44,8 +44,8 @@ uint16_t convex_search(const UsageSpan* usage_span, uint8_t dim_idx, const uint1
         if (dim_upper - dim_lower <= 2) {
             break;
         }
-        uint16_t dim_test_1 = usage_span->nearest_value(dim_idx, (dim_lower * 2 + dim_upper) / 3),
-                 dim_test_2 = usage_span->nearest_value(dim_idx, (dim_lower + dim_upper * 2) / 3);
+        uint16_t dim_test_1 = usage_span->nearest_value(dim_idx, (dim_lower * 2 + dim_upper) / 3, /*not_larger_than=*/false),
+                 dim_test_2 = usage_span->nearest_value(dim_idx, (dim_lower + dim_upper * 2) / 3, /*not_larger_than=*/false);
         my_printf_debug("Testing dimension idx %d: %d, %d" NEWLINE, dim_idx, dim_test_1, dim_test_2);
         uint32_t cost_test_1 = usage_span->calc(dim_idx, dim_test_1),
                  cost_test_2 = usage_span->calc(dim_idx, dim_test_2);

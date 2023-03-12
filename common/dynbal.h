@@ -13,7 +13,7 @@ const uint32_t NVM_RELATIVE_WRITE_COST = 1; // the ratio of NVM write cost and N
 class UsageSpan {
 public:
     virtual uint32_t calc(uint8_t dim_idx, uint16_t dim_value) const = 0;
-    virtual uint16_t nearest_value(uint8_t dim_idx, uint16_t dim_value) const = 0;
+    virtual uint16_t nearest_value(uint8_t dim_idx, uint16_t dim_value, bool not_larger_than) const = 0;
 };
 
 uint16_t convex_search(const UsageSpan* usage_span, uint8_t dim_idx, const uint16_t value_ranges[][2]);
@@ -30,6 +30,7 @@ InferenceStats* load_inference_stats_from_nvm(InferenceStatsOpType op_type);
 #if RuntimeConfiguration == Exhaustive
 struct ExhaustiveLookupTable {
     uint16_t node_idx;
+    uint16_t dim_idx;
     uint16_t conv_output_tile_c;
 };
 #endif

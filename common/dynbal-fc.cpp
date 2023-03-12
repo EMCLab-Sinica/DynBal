@@ -50,14 +50,20 @@ uint32_t UsageSpanFc::calc(uint8_t dim_idx, uint16_t dim_value) const {
     return usage_span;
 }
 
-uint16_t UsageSpanFc::nearest_value(uint8_t dim_idx, uint16_t dim_value) const {
+uint16_t UsageSpanFc::nearest_value(uint8_t dim_idx, uint16_t dim_value, bool not_larger_than) const {
     MY_ASSERT(dim_idx == ParameterDimension::TileChannel); // TODO: support TileWidth
 
     my_printf_debug("Finding the nearest local minimum for %d...", dim_value);
-    uint16_t tmp = layer_dims.A_cols / dim_value;
+    uint16_t tmp;
+    if (not_larger_than) {
+        tmp = upper_gauss(layer_dims.A_cols, dim_value);
+    } else {
+        tmp = layer_dims.A_cols / dim_value;
+    }
     // tile_channel should be multiple of op_filters, see determine_gemm_tile_sizes()
     uint16_t ret = (layer_dims.A_cols / tmp) / OP_FILTERS * OP_FILTERS;
-    ret = LIMIT_DMA_SIZE(ret);
+    ret = LIMIT_DMA_SIZE(MIN_VAL(ret, tile_channel_largest_local_minimum));
+    my_printf_debug("%d" NEWLINE, ret);
     return ret;
 }
 

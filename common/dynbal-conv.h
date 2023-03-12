@@ -4,7 +4,7 @@
 #include "dynbal.h"
 #include "conv.h"
 
-class NodeFlags;
+struct NodeFlags;
 
 class UsageSpanConv : public UsageSpan {
 public:
@@ -12,9 +12,13 @@ public:
         : layer_dims(_layer_dims)
         , input_tile_c(_input_tile_c)
         , output_tile_c(_output_tile_c)
+        , input_tile_c_largest_local_minimum(_input_tile_c)
+        , output_tile_c_largest_local_minimum(_output_tile_c)
         , power_cycle_energy(_power_cycle_energy)
-    {}
-    uint16_t nearest_value(uint8_t dim_idx, uint16_t dim_value) const;
+    {
+        output_tile_c_largest_local_minimum = nearest_value(ParameterDimension::OutputTileChannel, output_tile_c, /*not_larger_than=*/true);
+    }
+    uint16_t nearest_value(uint8_t dim_idx, uint16_t dim_value, bool not_larger_than) const;
     uint32_t calc(uint8_t dim_idx, uint16_t dim_value) const;
 
     enum ParameterDimension {
@@ -28,6 +32,8 @@ private:
     const ConvLayerDimensions& layer_dims;
     uint16_t input_tile_c;
     uint16_t output_tile_c;
+    uint16_t input_tile_c_largest_local_minimum;
+    uint16_t output_tile_c_largest_local_minimum;
     uint32_t power_cycle_energy;
 };
 

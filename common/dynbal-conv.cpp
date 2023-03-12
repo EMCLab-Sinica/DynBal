@@ -53,12 +53,17 @@ uint32_t UsageSpanConv::calc(uint8_t dim_idx, uint16_t dim_value) const {
     return usage_span;
 }
 
-uint16_t UsageSpanConv::nearest_value(uint8_t dim_idx, uint16_t dim_value) const {
+uint16_t UsageSpanConv::nearest_value(uint8_t dim_idx, uint16_t dim_value, bool not_larger_than) const {
     MY_ASSERT(dim_idx == ParameterDimension::OutputTileChannel); // TODO: support InputTileChannel
 
     my_printf_debug("Finding the nearest local minimum for %d...", dim_value);
-    uint16_t tmp = layer_dims.N_FILTERS / dim_value;
-    uint16_t ret = (layer_dims.N_FILTERS / tmp) / 2 * 2;
+    uint16_t tmp;
+    if (not_larger_than) {
+        tmp = upper_gauss(layer_dims.N_FILTERS, dim_value);
+    } else {
+        tmp = layer_dims.N_FILTERS / dim_value;
+    }
+    uint16_t ret = MIN_VAL((layer_dims.N_FILTERS / tmp) / 2 * 2, output_tile_c_largest_local_minimum);
     my_printf_debug("ret=%d" NEWLINE, ret);
     return ret;
 }
