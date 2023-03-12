@@ -78,7 +78,7 @@ typedef struct ConvTaskParams {
 static ConvTaskParams conv_params_obj;
 
 // for group convolution
-static int16_t biases[OUTPUT_LEN];
+int16_t* const biases = op_buffer;
 
 #if INDIRECT_RECOVERY
 static void flip_filter_state_bits(ConvTaskParams *conv_params, uint16_t n_filters) {

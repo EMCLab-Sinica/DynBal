@@ -36,7 +36,7 @@ void alloc_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
     output->params_len = output_len * upper_gauss(B->dims[0], node_flags->gemm.tile_channel) * sizeof(int16_t);
 }
 
-int16_t weights_tmp[512];
+int16_t* const weights_tmp = op_buffer;
 
 void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags* node_flags, const NodeFlags* orig_node_flags) {
     const ParameterInfo *A = input[0], *B = input[1], *matC = input[2];
@@ -158,7 +158,7 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
             int16_t *filter_ptr = buffer_b;
             my_fill_q15(0, filter_ptr, extended_tile_channels * full_tile_width);
             for (uint16_t row = 0; row < tile_width; row++) {
-                MY_ASSERT(tile_channels <= sizeof(weights_tmp) / sizeof(weights_tmp[0]));
+                MY_ASSERT(tile_channels <= OP_BUFFER_LEN);
                 my_memcpy_from_param(model, weights_tmp,
                           B, (j + row) * B->dims[0] + i,
                           tile_channels * sizeof(uint16_t));

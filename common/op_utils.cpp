@@ -15,6 +15,8 @@
 int16_t lea_buffer[LEA_BUFFER_SIZE];
 
 int16_t state_offsets[OUTPUT_LEN] = { 0 };
+int16_t op_buffer[OP_BUFFER_LEN];
+static_assert(OUTPUT_LEN <= OP_BUFFER_LEN, "invalid OP buffer size");
 
 #if HAWAII
 static int16_t non_recorded_jobs = 0;

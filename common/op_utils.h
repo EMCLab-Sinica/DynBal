@@ -4,6 +4,8 @@
 #include "data.h"
 #include "platform.h"
 
+#define OP_BUFFER_LEN 512
+
 struct Model;
 struct ParameterInfo;
 struct SlotInfo;
@@ -57,3 +59,4 @@ void move_weights(int16_t* filter_ptr, bool exact_tile, int16_t values_to_preser
 #endif
 
 extern int16_t state_offsets[OUTPUT_LEN];
+extern int16_t op_buffer[OP_BUFFER_LEN];
