@@ -250,18 +250,20 @@ void dump_matrix(const int16_t *mat, size_t rows, size_t cols, const ValueInfo& 
     my_printf(NEWLINE);
 }
 
-static const uint16_t BUFFER_TEMP_SIZE = 256;
+static const uint16_t BUFFER_TEMP_SIZE = 16;
 static int16_t buffer_temp[BUFFER_TEMP_SIZE];
 
 void compare_vm_nvm_impl(int16_t* vm_data, Model* model, const ParameterInfo* output, uint16_t output_offset, uint16_t blockSize) {
     disable_counters();
     check_buffer_address(vm_data, blockSize);
-    MY_ASSERT(blockSize <= BUFFER_TEMP_SIZE);
 
-    memset(buffer_temp, 0, blockSize * sizeof(int16_t));
-    my_memcpy_from_param(model, buffer_temp, output, output_offset, blockSize * sizeof(int16_t));
-    for (uint16_t idx = 0; idx < blockSize; idx++) {
-        MY_ASSERT_ALWAYS(vm_data[idx] == buffer_temp[idx]);
+    memset(buffer_temp, 0, BUFFER_TEMP_SIZE * sizeof(int16_t));
+    for (uint16_t offset = 0; offset < blockSize; offset += BUFFER_TEMP_SIZE) {
+        uint16_t cur_block_size = MIN_VAL(BUFFER_TEMP_SIZE, blockSize - offset);
+        my_memcpy_from_param(model, buffer_temp, output, output_offset + offset, cur_block_size * sizeof(int16_t));
+        for (uint16_t idx = 0; idx < cur_block_size; idx++) {
+            MY_ASSERT_ALWAYS(vm_data[idx + offset] == buffer_temp[idx]);
+        }
     }
     enable_counters();
 }
