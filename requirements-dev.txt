@@ -1,0 +1,7 @@
+matplotlib==3.7.0
+nbclassic==0.5.3
+odfpy==1.4.1
+pillow==9.4.0
+pyqt5==5.15.9
+scipy==1.10.1
+tf2onnx==1.13.0
