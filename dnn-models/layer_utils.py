@@ -134,6 +134,7 @@ def determine_gemm_tile_sizes(onnx_model: onnx.ModelProto, config: dict[str, Any
     A = find_tensor_value_info(onnx_model, node.input[0])
     B = find_initializer(onnx_model, node.input[1])
     B_rows = B.dims[0]
+    B_cols = B.dims[1]
 
     # writing a batch at a time is simpler and faster
     tile_size_unit = config['op_filters']
@@ -156,6 +157,8 @@ def determine_gemm_tile_sizes(onnx_model: onnx.ModelProto, config: dict[str, Any
 
     while True:
         new_tile_width = gemm_flags.tile_width + tile_size_unit
+        if new_tile_width > B_cols:
+            break
         if not check_gemm_vm_usage(A, gemm_flags.tile_channel, new_tile_width, batch_size, target):
             break
         gemm_flags.tile_width = new_tile_width
