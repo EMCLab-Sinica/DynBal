@@ -5,6 +5,7 @@
 #include "fc.h"
 
 struct NodeFlags;
+struct Node;
 
 class UsageSpanFc : public UsageSpan {
 public:
@@ -34,4 +35,4 @@ private:
     uint32_t power_cycle_energy;
 };
 
-void update_progress_indicator_fc(NodeFlags* flags, const NodeFlags* orig_flags, const FcLayerDimensions& layer_dims, uint32_t first_unfinished_value_offset);
+void update_progress_indicator_fc(const Node* node, NodeFlags* flags, const NodeFlags* orig_flags, const FcLayerDimensions& layer_dims, uint32_t first_unfinished_value_offset);

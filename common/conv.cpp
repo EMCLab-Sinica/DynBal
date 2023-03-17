@@ -752,8 +752,10 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 #endif
 
 #if INTERMITTENT && RuntimeConfiguration == DynBal
-    update_progress_indicator_conv(conv_params->flags, conv_params->orig_flags, conv_params->layer_dims, first_unfinished_job_idx);
+    update_progress_indicator_conv(node, conv_params->flags, conv_params->orig_flags, conv_params->layer_dims, first_unfinished_job_idx);
 #endif
+    conv_params->n_tiles_c = upper_gauss(CHANNEL, conv_params->flags->conv.input_tile_c);
+    output->params_len = conv_params->n_tiles_c * layer_dims->OUTPUT_H * layer_dims->OUTPUT_W * layer_dims->OUTPUT_CHANNEL * sizeof(int16_t);
 
     int16_t input_channels = conv_filter->dims[1];
     for (; conv_params->input_tile_c_offset < input_channels; conv_params->input_tile_c_offset += conv_params->flags->conv.input_tile_c) {

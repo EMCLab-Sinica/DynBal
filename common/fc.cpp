@@ -98,7 +98,7 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     layer_dims.A_rows = A->dims[0];
     layer_dims.A_cols = A->dims[1];
     layer_dims.B_cols = B->dims[1];
-    update_progress_indicator_fc(node_flags, orig_node_flags, layer_dims, first_unfinished_value_offset);
+    update_progress_indicator_fc(node, node_flags, orig_node_flags, layer_dims, first_unfinished_value_offset);
 #endif
 
     my_printf_debug("tile_channel=%d, tile_width=%d" NEWLINE, node_flags->gemm.tile_channel, node_flags->gemm.tile_width);

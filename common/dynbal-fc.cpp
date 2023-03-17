@@ -9,9 +9,10 @@
 #include "layers.h"
 #include "op_utils.h"
 #include "my_debug.h"
+#include "platform.h"
 
 // tile_channel: convex
-// tile_width: monotonic
+// tile_width: convex
 
 uint32_t UsageSpanFc::calc(uint8_t dim_idx, uint16_t dim_value) const {
     uint32_t n_input_values, n_filter_values;
@@ -51,23 +52,28 @@ uint32_t UsageSpanFc::calc(uint8_t dim_idx, uint16_t dim_value) const {
 }
 
 uint16_t UsageSpanFc::nearest_value(uint8_t dim_idx, uint16_t dim_value, bool not_larger_than) const {
-    MY_ASSERT(dim_idx == ParameterDimension::TileChannel); // TODO: support TileWidth
-
     my_printf_debug("Finding the nearest local minimum for %d...", dim_value);
-    uint16_t tmp;
-    if (not_larger_than) {
-        tmp = upper_gauss(layer_dims.A_cols, dim_value);
+    uint16_t tmp, dim_original_value, dim_upper_bound;
+    if (dim_idx == ParameterDimension::TileChannel) {
+        dim_original_value = layer_dims.A_cols;
+        dim_upper_bound = tile_channel_largest_local_minimum;
     } else {
-        tmp = layer_dims.A_cols / dim_value;
+        dim_original_value = layer_dims.B_cols;
+        dim_upper_bound = tile_width_largest_local_minimum;
+    }
+    if (not_larger_than) {
+        tmp = upper_gauss(dim_original_value, dim_value);
+    } else {
+        tmp = dim_original_value / dim_value;
     }
     // tile_channel should be multiple of op_filters, see determine_gemm_tile_sizes()
-    uint16_t ret = (layer_dims.A_cols / tmp) / OP_FILTERS * OP_FILTERS;
-    ret = LIMIT_DMA_SIZE(MIN_VAL(ret, tile_channel_largest_local_minimum));
-    my_printf_debug("%d" NEWLINE, ret);
+    uint16_t ret = (dim_original_value / tmp) / OP_FILTERS * OP_FILTERS;
+    ret = LIMIT_DMA_SIZE(MIN_VAL(ret, dim_upper_bound));
+    my_printf_debug("ret=%d" NEWLINE, ret);
     return ret;
 }
 
-static void adapt_fc_dynbal(NodeFlags* node_flags, const NodeFlags* orig_flags, const UsageSpanFc* usage_span, const FcLayerDimensions& layer_dims, uint32_t jobs_in_a_power_cycle) {
+static void adapt_fc_dynbal(const Node* node, NodeFlags* node_flags, const NodeFlags* orig_flags, const UsageSpanFc* usage_span, const FcLayerDimensions& layer_dims, uint32_t jobs_in_a_power_cycle) {
     uint32_t output_len = layer_dims.A_rows * layer_dims.B_cols;
     uint16_t tile_channel_upper = orig_flags->gemm.tile_channel,
              tile_channel_lower = MAX_VAL(2, output_len * sizeof(int16_t) * layer_dims.A_cols / INTERMEDIATE_VALUES_SIZE);
@@ -76,14 +82,19 @@ static void adapt_fc_dynbal(NodeFlags* node_flags, const NodeFlags* orig_flags, 
         { tile_channel_lower, tile_channel_upper },
         { tile_width_lower, tile_width_upper },
     };
-    uint8_t dim_idx = UsageSpanFc::ParameterDimension::TileChannel;
-    uint16_t new_tile_channel = convex_search(usage_span, dim_idx, value_ranges);
-    node_flags->gemm.tile_channel = new_tile_channel;
-
-    my_printf_debug("Selected tile_channel: %d" NEWLINE, node_flags->gemm.tile_channel);
+    for (uint8_t dim_idx : node->parameters_by_importance) {
+        uint16_t new_dim_value = convex_search(usage_span, dim_idx, value_ranges);
+        if (dim_idx == UsageSpanFc::ParameterDimension::TileChannel) {
+            node_flags->gemm.tile_channel = new_dim_value;
+            my_printf_debug("Selected tile_channel: %d" NEWLINE, node_flags->gemm.tile_channel);
+        } else {
+            node_flags->gemm.tile_width = new_dim_value;
+            my_printf_debug("Selected tile_width: %d" NEWLINE, node_flags->gemm.tile_width);
+        }
+    }
 }
 
-void update_progress_indicator_fc(NodeFlags* node_flags, const NodeFlags* orig_flags, const FcLayerDimensions& layer_dims, uint32_t first_unfinished_value_offset) {
+void update_progress_indicator_fc(const Node* node, NodeFlags* node_flags, const NodeFlags* orig_flags, const FcLayerDimensions& layer_dims, uint32_t first_unfinished_value_offset) {
     InferenceStats* stats = load_inference_stats_from_nvm(InferenceStatsOpType::FC);
 
     const UsageSpanFc usage_span(layer_dims, orig_flags->gemm.tile_channel, orig_flags->gemm.tile_width, stats->power_cycle_energy);
@@ -91,7 +102,7 @@ void update_progress_indicator_fc(NodeFlags* node_flags, const NodeFlags* orig_f
     if (first_unfinished_value_offset == 0) {
         // Starting a new layer
         if (stats->power_cycle_energy) {
-            adapt_fc_dynbal(node_flags, orig_flags, &usage_span, layer_dims, stats->power_cycle_energy);
+            adapt_fc_dynbal(node, node_flags, orig_flags, &usage_span, layer_dims, stats->power_cycle_energy);
             commit_node_flags(node_flags);
         } else {
             my_printf_debug("Skipping runtime reconfiguration!" NEWLINE);

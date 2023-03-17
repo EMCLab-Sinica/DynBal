@@ -6,9 +6,10 @@
 #include "layers.h"
 #include "my_debug.h"
 #include "op_utils.h"
+#include "platform.h"
 
 // output_tile_c: convex
-// input_tile_c: monotonic
+// input_tile_c: convex
 
 static const uint32_t NVM_READ_COST = FRAM_FREQ_DIVIDER*8*sizeof(int16_t)*4/13;
 
@@ -54,36 +55,46 @@ uint32_t UsageSpanConv::calc(uint8_t dim_idx, uint16_t dim_value) const {
 }
 
 uint16_t UsageSpanConv::nearest_value(uint8_t dim_idx, uint16_t dim_value, bool not_larger_than) const {
-    MY_ASSERT(dim_idx == ParameterDimension::OutputTileChannel); // TODO: support InputTileChannel
-
     my_printf_debug("Finding the nearest local minimum for %d...", dim_value);
-    uint16_t tmp;
-    if (not_larger_than) {
-        tmp = upper_gauss(layer_dims.N_FILTERS, dim_value);
+    uint16_t tmp, dim_original_value, dim_upper_bound;
+    if (dim_idx == ParameterDimension::OutputTileChannel) {
+        dim_original_value = layer_dims.N_FILTERS;
+        dim_upper_bound = output_tile_c_largest_local_minimum;
     } else {
-        tmp = layer_dims.N_FILTERS / dim_value;
+        dim_original_value = layer_dims.CHANNEL;
+        dim_upper_bound = input_tile_c_largest_local_minimum;
     }
-    uint16_t ret = MIN_VAL((layer_dims.N_FILTERS / tmp) / 2 * 2, output_tile_c_largest_local_minimum);
+    if (not_larger_than) {
+        tmp = upper_gauss(dim_original_value, dim_value);
+    } else {
+        tmp = dim_original_value / dim_value;
+    }
+    uint16_t ret = MIN_VAL((dim_original_value / tmp) / 2 * 2, dim_upper_bound);
     my_printf_debug("ret=%d" NEWLINE, ret);
     return ret;
 }
 
 #if RuntimeConfiguration == DynBal
-void adapt_conv_dynbal(NodeFlags* node_flags, const NodeFlags* orig_flags, const UsageSpanConv* usage_span, uint32_t power_cycle_energy) {
+void adapt_conv_dynbal(const Node* node, NodeFlags* node_flags, const NodeFlags* orig_flags, const UsageSpanConv* usage_span, uint32_t power_cycle_energy) {
     uint16_t output_tile_c_upper = orig_flags->conv.output_tile_c, output_tile_c_lower = 2;
     uint16_t input_tile_c_upper = orig_flags->conv.input_tile_c, input_tile_c_lower = 2;
     const uint16_t value_ranges[2][2] = {
         { input_tile_c_lower,  input_tile_c_upper },
         { output_tile_c_lower, output_tile_c_upper }
     };
-    uint8_t dim_idx = UsageSpanConv::ParameterDimension::OutputTileChannel;
-    uint16_t new_output_tile_c = convex_search(usage_span, dim_idx, value_ranges);
-    node_flags->conv.output_tile_c = new_output_tile_c;
-
-    my_printf_debug("Selected output_tile_c: %d" NEWLINE, node_flags->conv.output_tile_c);
+    for (uint8_t dim_idx : node->parameters_by_importance) {
+        uint16_t new_dim_value = convex_search(usage_span, dim_idx, value_ranges);
+        if (dim_idx == UsageSpanConv::ParameterDimension::OutputTileChannel) {
+            node_flags->conv.output_tile_c = new_dim_value;
+            my_printf_debug("Selected output_tile_c: %d" NEWLINE, new_dim_value);
+        } else {
+            node_flags->conv.input_tile_c = new_dim_value;
+            my_printf_debug("Selected input_tile_c: %d" NEWLINE, new_dim_value);
+        }
+    }
 }
 
-void update_progress_indicator_conv(NodeFlags* node_flags, const NodeFlags* orig_flags, const ConvLayerDimensions& layer_dims, uint32_t first_unfinished_job_idx) {
+void update_progress_indicator_conv(const Node* node, NodeFlags* node_flags, const NodeFlags* orig_flags, const ConvLayerDimensions& layer_dims, uint32_t first_unfinished_job_idx) {
     InferenceStats* stats = load_inference_stats_from_nvm(InferenceStatsOpType::Conv);
 
     const UsageSpanConv usage_span(layer_dims, orig_flags->conv.input_tile_c, orig_flags->conv.output_tile_c, stats->power_cycle_energy);
@@ -91,7 +102,7 @@ void update_progress_indicator_conv(NodeFlags* node_flags, const NodeFlags* orig
     if (first_unfinished_job_idx == 0) {
         // Starting a new layer
         if (stats->power_cycle_energy) {
-            adapt_conv_dynbal(node_flags, orig_flags, &usage_span, stats->power_cycle_energy);
+            adapt_conv_dynbal(node, node_flags, orig_flags, &usage_span, stats->power_cycle_energy);
             commit_node_flags(node_flags);
         } else {
             my_printf_debug("Skipping runtime reconfiguration!" NEWLINE);

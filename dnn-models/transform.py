@@ -49,6 +49,9 @@ from layer_utils import (
     determine_conv_tile_c,
     determine_gemm_tile_sizes,
 )
+from dynbal import (
+    parameter_importance,
+)
 
 logging.basicConfig()
 logger = logging.getLogger('intermittent-cnn.transform')
@@ -137,6 +140,7 @@ class ONNXNodeWrapper:
         self.max_output_id = 0
         self.name = orig_node.name or orig_node.output[0] or orig_node.op_type
         self.inputs = []
+        self.parameters_by_importance = [-1, -1]
 
     def __getattr__(self, name):
         return getattr(self.orig_node, name)
@@ -397,6 +401,8 @@ logger.info('Maximum number of inputs = %d', Constants.NUM_INPUTS)
 
 ops = get_model_ops(onnx_model)
 
+parameter_importance(onnx_model, nodes)
+
 def write_str(buffer: io.BytesIO, data: str):
     assert Constants.NODE_NAME_LEN >= len(data), f'String too long: {data}'
     buffer.write(data.encode('ascii') + b'\0' * (Constants.NODE_NAME_LEN - len(data)))
@@ -411,6 +417,8 @@ for node in nodes:
         output_nodes.write(to_bytes(0))
     output_nodes.write(to_bytes(node.max_output_id))
     output_nodes.write(to_bytes(ops.index(node.op_type)))
+    for parameter_idx in node.parameters_by_importance:
+        output_nodes.write(to_bytes(parameter_idx))
 
 footprints_arr = ffi.new('struct Footprint[]', 2 * len(nodes))
 outputs['footprints'].append(footprints_arr)

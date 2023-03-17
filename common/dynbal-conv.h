@@ -5,6 +5,7 @@
 #include "conv.h"
 
 struct NodeFlags;
+struct Node;
 
 class UsageSpanConv : public UsageSpan {
 public:
@@ -17,6 +18,7 @@ public:
         , power_cycle_energy(_power_cycle_energy)
     {
         output_tile_c_largest_local_minimum = nearest_value(ParameterDimension::OutputTileChannel, output_tile_c, /*not_larger_than=*/true);
+        input_tile_c_largest_local_minimum = nearest_value(ParameterDimension::InputTileChannel, input_tile_c, /*not_larger_than=*/true);
     }
     uint16_t nearest_value(uint8_t dim_idx, uint16_t dim_value, bool not_larger_than) const;
     uint32_t calc(uint8_t dim_idx, uint16_t dim_value) const;
@@ -37,4 +39,4 @@ private:
     uint32_t power_cycle_energy;
 };
 
-void update_progress_indicator_conv(NodeFlags* flags, const NodeFlags* orig_flags, const ConvLayerDimensions& layer_dims, uint32_t first_unfinished_job_idx);
+void update_progress_indicator_conv(const Node* node, NodeFlags* flags, const NodeFlags* orig_flags, const ConvLayerDimensions& layer_dims, uint32_t first_unfinished_job_idx);
