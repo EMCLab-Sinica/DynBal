@@ -84,28 +84,36 @@ static void adapt_fc_dynbal(const Node* node, NodeFlags* node_flags, const NodeF
     };
     for (uint8_t dim_idx : node->parameters_by_importance) {
         uint16_t new_dim_value = convex_search(usage_span, dim_idx, value_ranges);
-        if (dim_idx == UsageSpanFc::ParameterDimension::TileChannel) {
-            node_flags->gemm.tile_channel = new_dim_value;
-            my_printf_debug("Selected tile_channel: %d" NEWLINE, node_flags->gemm.tile_channel);
-        } else {
-            node_flags->gemm.tile_width = new_dim_value;
-            my_printf_debug("Selected tile_width: %d" NEWLINE, node_flags->gemm.tile_width);
+        if (!read_gpio_flag(GPIOFlag::DisableDynBalReconfiguration)) {
+            if (dim_idx == UsageSpanFc::ParameterDimension::TileChannel) {
+                node_flags->gemm.tile_channel = new_dim_value;
+                my_printf_debug("Selected tile_channel: %d" NEWLINE, node_flags->gemm.tile_channel);
+            } else {
+                node_flags->gemm.tile_width = new_dim_value;
+                my_printf_debug("Selected tile_width: %d" NEWLINE, node_flags->gemm.tile_width);
+            }
         }
     }
 }
 
 void update_progress_indicator_fc(const Node* node, NodeFlags* node_flags, const NodeFlags* orig_flags, const FcLayerDimensions& layer_dims, uint32_t first_unfinished_value_offset) {
+    if (read_gpio_flag(GPIOFlag::DisableDynBalTracking)) {
+        return;
+    }
+
     InferenceStats* stats = load_inference_stats_from_nvm(InferenceStatsOpType::FC);
 
     const UsageSpanFc usage_span(layer_dims, orig_flags->gemm.tile_channel, orig_flags->gemm.tile_width, stats->power_cycle_energy);
 
     if (first_unfinished_value_offset == 0) {
-        // Starting a new layer
-        if (stats->power_cycle_energy) {
-            adapt_fc_dynbal(node, node_flags, orig_flags, &usage_span, layer_dims, stats->power_cycle_energy);
-            commit_node_flags(node_flags);
-        } else {
-            my_printf_debug("Skipping runtime reconfiguration!" NEWLINE);
+        if (!read_gpio_flag(GPIOFlag::DisableDynBalSearch)) {
+            // Starting a new layer
+            if (stats->power_cycle_energy) {
+                adapt_fc_dynbal(node, node_flags, orig_flags, &usage_span, layer_dims, stats->power_cycle_energy);
+                commit_node_flags(node_flags);
+            } else {
+                my_printf_debug("Skipping runtime reconfiguration!" NEWLINE);
+            }
         }
         // Cleanup stats from the previous layer
         stats->last_progress_indicator = 0;

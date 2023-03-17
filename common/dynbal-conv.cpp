@@ -84,28 +84,36 @@ void adapt_conv_dynbal(const Node* node, NodeFlags* node_flags, const NodeFlags*
     };
     for (uint8_t dim_idx : node->parameters_by_importance) {
         uint16_t new_dim_value = convex_search(usage_span, dim_idx, value_ranges);
-        if (dim_idx == UsageSpanConv::ParameterDimension::OutputTileChannel) {
-            node_flags->conv.output_tile_c = new_dim_value;
-            my_printf_debug("Selected output_tile_c: %d" NEWLINE, new_dim_value);
-        } else {
-            node_flags->conv.input_tile_c = new_dim_value;
-            my_printf_debug("Selected input_tile_c: %d" NEWLINE, new_dim_value);
+        if (!read_gpio_flag(GPIOFlag::DisableDynBalReconfiguration)) {
+            if (dim_idx == UsageSpanConv::ParameterDimension::OutputTileChannel) {
+                node_flags->conv.output_tile_c = new_dim_value;
+                my_printf_debug("Selected output_tile_c: %d" NEWLINE, new_dim_value);
+            } else {
+                node_flags->conv.input_tile_c = new_dim_value;
+                my_printf_debug("Selected input_tile_c: %d" NEWLINE, new_dim_value);
+            }
         }
     }
 }
 
 void update_progress_indicator_conv(const Node* node, NodeFlags* node_flags, const NodeFlags* orig_flags, const ConvLayerDimensions& layer_dims, uint32_t first_unfinished_job_idx) {
+    if (read_gpio_flag(GPIOFlag::DisableDynBalTracking)) {
+        return;
+    }
+
     InferenceStats* stats = load_inference_stats_from_nvm(InferenceStatsOpType::Conv);
 
     const UsageSpanConv usage_span(layer_dims, orig_flags->conv.input_tile_c, orig_flags->conv.output_tile_c, stats->power_cycle_energy);
 
     if (first_unfinished_job_idx == 0) {
-        // Starting a new layer
-        if (stats->power_cycle_energy) {
-            adapt_conv_dynbal(node, node_flags, orig_flags, &usage_span, stats->power_cycle_energy);
-            commit_node_flags(node_flags);
-        } else {
-            my_printf_debug("Skipping runtime reconfiguration!" NEWLINE);
+        if (!read_gpio_flag(GPIOFlag::DisableDynBalSearch)) {
+            // Starting a new layer
+            if (stats->power_cycle_energy) {
+                adapt_conv_dynbal(node, node_flags, orig_flags, &usage_span, stats->power_cycle_energy);
+                commit_node_flags(node_flags);
+            } else {
+                my_printf_debug("Skipping runtime reconfiguration!" NEWLINE);
+            }
         }
         // Cleanup stats from the previous layer
         stats->last_progress_indicator = 0;

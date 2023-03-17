@@ -94,16 +94,28 @@ void read_from_nvm(void* vm_buffer, uint32_t nvm_offset, size_t n) {
     SPI_READ(&addr, reinterpret_cast<uint8_t*>(vm_buffer), n);
 }
 
-struct {
+struct GPIOPin {
     uint16_t port;
     uint16_t pin;
-} indicators[] = {
+};
+
+static GPIOPin indicators[] = {
 #ifdef __MSP430__
     { GPIO_PORT_P4, GPIO_PIN7 }, // used in notify_layer_finished()
     { GPIO_PORT_P1, GPIO_PIN5 }, // TODO: check if it works
 #else
     { GPIO_PORT_P5, GPIO_PIN4 }, // used in notify_layer_finished()
     { GPIO_PORT_P4, GPIO_PIN7 },
+#endif
+};
+
+static GPIOPin gpio_flags[] = {
+#ifdef __MSP430__
+#error "TODO"
+#else
+    { GPIO_PORT_P2, GPIO_PIN7 },
+    { GPIO_PORT_P2, GPIO_PIN6 },
+    { GPIO_PORT_P2, GPIO_PIN4 },
 #endif
 };
 
@@ -154,6 +166,9 @@ void IntermittentCNNTest() {
         GPIO_setOutputLowOnPin(indicators[idx].port, indicators[idx].pin);
     }
     GPIO_setAsInputPinWithPullUpResistor(GPIO_RESET_PORT, GPIO_RESET_PIN);
+    for (size_t idx = 0; idx < sizeof(gpio_flags) / sizeof(gpio_flags[0]); idx++) {
+        GPIO_setAsInputPinWithPullUpResistor(gpio_flags[idx].port, gpio_flags[idx].pin);
+    }
 
     GPIO_setAsOutputPin( GPIO_PORT_P1, GPIO_PIN0 );
     GPIO_setOutputHighOnPin(GPIO_PORT_P1, GPIO_PIN0);
@@ -226,4 +241,9 @@ void notify_model_finished(void) {
 void notify_indicator(uint8_t idx) {
     my_printf("I%d" NEWLINE, idx);
     gpio_pulse(indicators[idx].port, indicators[idx].pin);
+}
+
+bool read_gpio_flag(GPIOFlag flag) {
+    uint8_t idx = static_cast<uint8_t>(flag);
+    return !GPIO_getInputPinValue(gpio_flags[idx].port, gpio_flags[idx].pin);
 }

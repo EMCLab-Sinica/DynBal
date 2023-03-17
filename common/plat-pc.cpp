@@ -238,6 +238,7 @@ void copy_data_to_nvm(void) {
 void notify_layer_finished(void) {}
 void notify_model_finished(void) {}
 void notify_indicator(uint8_t idx) {}
+bool read_gpio_flag(GPIOFlag flag) { return false; }
 
 [[ noreturn ]] void ERROR_OCCURRED(void) {
     exit_with_status(1);

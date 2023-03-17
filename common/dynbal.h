@@ -27,6 +27,12 @@ enum class InferenceStatsOpType {
 void commit_inference_stats(InferenceStatsOpType op_type);
 InferenceStats* load_inference_stats_from_nvm(InferenceStatsOpType op_type);
 
+enum class GPIOFlag {
+    DisableDynBalReconfiguration,
+    DisableDynBalSearch,
+    DisableDynBalTracking,
+};
+
 #if RuntimeConfiguration == Exhaustive
 struct ExhaustiveLookupTable {
     uint16_t node_idx;
