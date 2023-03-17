@@ -39,6 +39,17 @@ const char* datatype_name<Model>(void) {
     return "model";
 }
 
+static void notify_progress(void) {
+#if 0
+    // indicate there is some progress in this power cycle
+    static bool notified = false;
+    if (!notified) {
+        notify_indicator(1);
+        notified = true;
+    }
+#endif
+}
+
 void my_memcpy_to_param(ParameterInfo *param, uint16_t offset_in_word, const void *src, size_t n, uint16_t timer_delay, bool is_linear) {
     MY_ASSERT(param->slot < NUM_SLOTS);
     uint32_t total_offset = param->params_offset + offset_in_word * sizeof(int16_t);
@@ -62,6 +73,7 @@ void my_memcpy_to_param(ParameterInfo *param, uint16_t offset_in_word, const voi
     }
 #endif
     write_to_nvm(src, intermediate_values_offset(param->slot) + total_offset, n, timer_delay);
+    notify_progress();
 }
 
 void my_memcpy_from_intermediate_values(void *dest, const ParameterInfo *param, uint16_t offset_in_word, size_t n) {
