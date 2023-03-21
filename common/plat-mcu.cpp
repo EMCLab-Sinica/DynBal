@@ -226,7 +226,7 @@ static void gpio_pulse(uint8_t port, uint16_t pin) {
     // Trigger a short peak so that multiple inferences in long power cycles are correctly recorded
     GPIO_setOutputHighOnPin(port, pin);
     our_delay_cycles(5E-3 * getFrequency(FreqLevel));
-    GPIO_setOutputLowOnPin(GPIO_COUNTER_PORT, GPIO_COUNTER_PIN);
+    GPIO_setOutputLowOnPin(port, pin);
 }
 
 void notify_layer_finished(void) {
