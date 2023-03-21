@@ -6,8 +6,8 @@
 InferenceStats inference_stats_vm[2];
 
 template<>
-uint32_t nvm_addr<InferenceStats>(uint8_t copy_id, uint16_t) {
-    return INFERENCE_STATS_OFFSET + copy_id * sizeof(InferenceStats);
+uint32_t nvm_addr<InferenceStats>(uint8_t copy_id, uint16_t op_type_idx) {
+    return INFERENCE_STATS_OFFSET + (copy_id * 2 + op_type_idx) * sizeof(InferenceStats);
 }
 
 template<>
@@ -24,14 +24,14 @@ InferenceStats* load_inference_stats_from_nvm(InferenceStatsOpType op_type) {
     uint16_t op_type_idx = static_cast<uint16_t>(op_type);
     const InferenceStats* stats = &inference_stats_vm[op_type_idx];
     InferenceStats* ret = get_versioned_data<InferenceStats>(op_type_idx);
-    my_printf_debug("Loaded inference stats power_cycle_energy=%d, last_progress_indicator=%d" NEWLINE, stats->power_cycle_energy, stats->last_progress_indicator);
+    my_printf_debug("Loaded inference stats op_type=%d power_cycle_energy=%d, last_progress_indicator=%d" NEWLINE, op_type_idx, stats->power_cycle_energy, stats->last_progress_indicator);
     return ret;
 }
 
 void commit_inference_stats(InferenceStatsOpType op_type) {
     uint16_t op_type_idx = static_cast<uint16_t>(op_type);
     const InferenceStats* stats = &inference_stats_vm[op_type_idx];
-    my_printf_debug("Saving inference stats power_cycle_energy=%d, last_progress_indicator=%d" NEWLINE, stats->power_cycle_energy, stats->last_progress_indicator);
+    my_printf_debug("Saving inference stats op_type=%d power_cycle_energy=%d, last_progress_indicator=%d" NEWLINE, op_type_idx, stats->power_cycle_energy, stats->last_progress_indicator);
     commit_versioned_data<InferenceStats>(op_type_idx);
 }
 

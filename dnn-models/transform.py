@@ -423,7 +423,7 @@ for node in nodes:
 footprints_arr = ffi.new('struct Footprint[]', 2 * len(nodes))
 outputs['footprints'].append(footprints_arr)
 
-inference_stats_arr = ffi.new('struct InferenceStats[]', 2)
+inference_stats_arr = ffi.new('struct InferenceStats[]', 2 * 2)
 outputs['inference_stats'].append(inference_stats_arr)
 
 outputs['node_orig_flags'].append(node_flags)
