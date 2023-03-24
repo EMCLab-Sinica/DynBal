@@ -66,31 +66,6 @@ target_compile_definitions(arm_cmsis_dsp
         ARM_MATH_MATRIX_CHECK
 )
 
-set(DSPLIB_PATH ${CMAKE_CURRENT_SOURCE_DIR}/TI-DSPLib)
-add_library(dsplib
-    ${DSPLIB_PATH}/source/matrix/msp_matrix_mpy_q15.c
-    ${DSPLIB_PATH}/source/vector/msp_add_q15.c
-    ${DSPLIB_PATH}/source/vector/msp_offset_q15.c
-    ${DSPLIB_PATH}/source/vector/msp_mac_q15.c
-    ${DSPLIB_PATH}/source/vector/msp_max_q15.c
-    ${DSPLIB_PATH}/source/vector/msp_min_q15.c
-    ${DSPLIB_PATH}/source/vector/msp_mpy_q15.c
-    ${DSPLIB_PATH}/source/vector/msp_scale_q15.c
-    ${DSPLIB_PATH}/source/utility/msp_deinterleave_q15.c
-    ${DSPLIB_PATH}/source/utility/msp_interleave_q15.c
-    ${DSPLIB_PATH}/source/utility/msp_fill_q15.c
-)
-target_include_directories(dsplib
-    SYSTEM PUBLIC
-        ${DSPLIB_PATH}/include
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/msp430-compat
-    PRIVATE
-        ${COMMON_SRC_PATH}
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_BINARY_DIR}
-)
-
 set (intermittent_cnn_SOURCES
     ${COMMON_SRC_PATH}/intermittent-cnn.cpp
     ${COMMON_SRC_PATH}/op_handlers.cpp
@@ -127,7 +102,7 @@ target_include_directories(intermittent-cnn
         ${CMAKE_BINARY_DIR}
 )
 
-target_link_libraries(intermittent-cnn arm_cmsis_dsp dsplib)
+target_link_libraries(intermittent-cnn arm_cmsis_dsp)
 
 if (USE_PROTOBUF)
     target_compile_definitions(intermittent-cnn
