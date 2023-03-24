@@ -3,15 +3,16 @@
 <!-- ABOUT THE PROJECT -->
 ## Overview
 
-This project develops the DynBal middleware for runtime inference engine reconfiguration, which maintains a balance between data reuse and data refetch costs during intermittent DNN inference with respect to changing level of intermittency. Our runtime middleware includes an indirect metric to easily evaluate an inference configuration considering the variability in intermittency and a lightweight reconfiguration algorithm to efficiently optimize the configuration at runtime.
+This project develops a middleware plugin (referred to as DynBal) that reconfigures the inference engine at runtime. During intermittent DNN inference, DynBal dynamically optimizes the inference configuration for each layer in order to balance the data reuse and data refetch costs, taking into account the varying level of intermittency at runtime. 
 
-We implemented our DynBal design on the Texas Instruments device MSP-EXP432P401R. It is an ARM-based 32-bit MCU with 64KB SRAM and single instruction multiple data (SIMD) instructions for accelerated computation, and an external NVM module (Cypress CY15B104Q serial FRAM) was integrated.
+We implemented our DynBal design on the Texas Instruments device MSP-EXP432P401R. It is an ARM-based 32-bit MCU with 64KB SRAM and single instruction multiple data (SIMD) instructions for accelerated computation. An external NVM module (Cypress CY15B104Q serial FRAM) was integrated to the platform. 
 
-Our middleware is built on top of the Stateful intermittent inference engine, and contains two key design components which interacts with the inference engine at runtime.
+DynBal was integrated with the [Stateful](https://github.com/EMCLab-Sinica/Stateful-CNN) intermittent inference engine for evalution purposes, although it can be easily integrated into most existing intermittent inference engines. 
 
+DynBal contains two key design components which interacts with the inference engine at runtime:
 
-* Performance estimation: an indirect metric, namely _Usage Span_, for evaluating an inference configuration.
-* Runtime configuration: dynamically updates the inference engine configuration parameters using feedback from performance estimation and heuristics obtained at design time.
+* Performance estimation: implements an indirect metric, referred to as the _Usage Span_, which is used to evaluate an inference configuration under a specific level of intermittency
+* Runtime reconfiguration: dynamically updates the inference configuration parameters using feedback from the performance estimation component and heuristics derived at design time. 
 
 
 <!-- For more technical details, please refer to our paper **TODO**. -->
