@@ -84,6 +84,12 @@ void my_memcpy(void* dest, const void* src, size_t n) {
 
 void my_memcpy_from_parameters(void *dest, const ParameterInfo *param, uint32_t offset_in_bytes, size_t n) {
     MY_ASSERT(offset_in_bytes + n <= PARAMETERS_DATA_LEN);
+#if ENABLE_COUNTERS
+    if (counters_enabled) {
+        add_counter(offsetof(Counters, nvm_read_parameters), n);
+        my_printf_debug("Recorded %lu bytes fetched from parameters, accumulated=%" PRIu32 NEWLINE, n, get_counter(offsetof(Counters, nvm_read_parameters)));
+    }
+#endif
     read_from_nvm(dest, PARAMETERS_OFFSET + param->params_offset + offset_in_bytes, n);
 }
 

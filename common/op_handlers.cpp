@@ -59,7 +59,7 @@ void handle_relu(Model *model, const ParameterInfo *input[], ParameterInfo *outp
         uint8_t cur_tile_size = MIN_VAL(real_relu_tile_size, data_len - i);
         my_memcpy_from_param(model, vals, X, output_offset, cur_tile_size*sizeof(int16_t));
 #if JAPARI && ENABLE_COUNTERS
-        counters()->data_loading += (cur_tile_size/2)*(4*8);
+        add_counter(offsetof(Counters, data_loading), (cur_tile_size/2)*(4*8));
 #endif
 
 #if STATEFUL

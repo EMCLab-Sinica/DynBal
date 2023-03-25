@@ -90,7 +90,7 @@ static void flip_filter_state_bits(ConvTaskParams *conv_params, uint16_t n_filte
         to_flip_state_bits = biases;
     }
 #if ENABLE_COUNTERS
-    counters()->embedded_values += n_filters;
+    add_counter(offsetof(Counters, embedded_values), n_filters);
 #endif
     // need negating filter value here as it will be multiplied with _Q15(-1.0), or -32768
     int8_t state_multiplier = (conv_params->group == 1) ? -1 : 1;
@@ -209,7 +209,7 @@ static void convTask(int16_t cur_input_h, const ConvLayerDimensions* layer_dims,
                 my_printf_debug("Adding state bit for newly loaded filter idx=%d" NEWLINE, idx);
                 last_elem = state_offsets[idx];
 #if ENABLE_COUNTERS
-                counters()->embedded_values++;
+                add_counter(offsetof(Counters, embedded_values), 1);
 #endif
             }
             stop_cpu_counter();
@@ -940,7 +940,7 @@ void handle_convmerge(Model *model, const ParameterInfo *input[], ParameterInfo 
                 uint16_t cur_input_offset = input_tile_c_index * tiling_results_len + input_offset;
                 my_memcpy_from_param(model, to_add, data, cur_input_offset, real_chunk_len * sizeof(int16_t));
 #if JAPARI && ENABLE_COUNTERS
-                counters()->data_loading += (real_chunk_len/2)*(4*8);
+                add_counter(offsetof(Counters, data_loading), (real_chunk_len/2)*(4*8));
 #endif
 #if STATEFUL
                 start_cpu_counter(offsetof(Counters, stripping));

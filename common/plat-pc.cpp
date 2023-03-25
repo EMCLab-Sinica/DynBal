@@ -160,8 +160,8 @@ int main(int argc, char* argv[]) {
 void my_memcpy_ex(void* dest, const void* src, size_t n, uint8_t write_to_nvm) {
 #if ENABLE_COUNTERS
     if (counters_enabled) {
-        counters()->dma_invocations++;
-        counters()->dma_bytes += n;
+        add_counter(offsetof(Counters, dma_invocations), 1);
+        add_counter(offsetof(Counters, dma_bytes), n);
         my_printf_debug("Recorded %lu DMA bytes" NEWLINE, n);
     }
 #endif
@@ -183,7 +183,7 @@ void my_memcpy_ex(void* dest, const void* src, size_t n, uint8_t write_to_nvm) {
 void my_memcpy(void* dest, const void* src, size_t n) {
 #if ENABLE_COUNTERS
     if (counters_enabled) {
-        counters()->dma_vm_to_vm += n;
+        add_counter(offsetof(Counters, dma_vm_to_vm), n);
         my_printf_debug("Recorded %lu bytes copied from VM to VM" NEWLINE, n);
     }
 #endif
@@ -194,8 +194,8 @@ void my_memcpy_from_parameters(void *dest, const ParameterInfo *param, uint32_t 
     MY_ASSERT(offset_in_bytes + n <= PARAMETERS_DATA_LEN);
 #if ENABLE_COUNTERS
     if (counters_enabled) {
-        counters()->nvm_read_parameters += n;
-        my_printf_debug("Recorded %lu bytes fetched from parameters, accumulated=%" PRIu32 NEWLINE, n, counters()->nvm_read_parameters);
+        add_counter(offsetof(Counters, nvm_read_parameters), n);
+        my_printf_debug("Recorded %lu bytes fetched from parameters, accumulated=%" PRIu32 NEWLINE, n, get_counter(offsetof(Counters, nvm_read_parameters)));
     }
 #endif
     my_memcpy_ex(dest, parameters_data + param->params_offset + offset_in_bytes, n, 0);

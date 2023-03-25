@@ -160,7 +160,7 @@ static void handle_node(Model *model, uint16_t node_idx) {
         model->run_counter++;
 #if ENABLE_DEMO_COUNTERS
         if (!total_jobs) {
-            total_jobs = counters()->job_preservation / 2;
+            total_jobs = (get_counter(offsetof(Counters, nvm_write_linear_jobs)) + get_counter(offsetof(Counters, nvm_write_non_linear_jobs))) / 2;
         }
 #endif
     }

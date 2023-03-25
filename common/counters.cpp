@@ -82,8 +82,21 @@ void print_all_counters() {
 
     my_printf(NEWLINE "Total DMA bytes: %d", total_dma_bytes);
     my_printf(NEWLINE "Total MACs: %d", total_macs);
+    my_printf(NEWLINE "Communication-to-computation ratio: %f", 1.0f*total_dma_bytes/total_macs);
     my_printf(NEWLINE "Total overhead: %" PRIu32, total_overhead);
     my_printf(NEWLINE "run_counter: %d" NEWLINE, get_model()->run_counter);
+}
+
+static uint32_t* get_counter_ptr(uint8_t counter) {
+    return reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(counters()) + counter);
+}
+
+void add_counter(uint8_t counter, uint32_t value) {
+    *get_counter_ptr(counter) += value;
+}
+
+uint32_t get_counter(uint8_t counter) {
+    return *get_counter_ptr(counter);
 }
 
 void reset_counters() {
@@ -97,6 +110,42 @@ bool counters_cleared() {
     return (current_counter == INVALID_POINTER) && (prev_counter == INVALID_POINTER);
 }
 
+void start_cpu_counter(uint8_t mem_ptr) {
+#if ENABLE_DEMO_COUNTERS
+    return;
+#endif
+
+    MY_ASSERT(prev_counter == INVALID_POINTER, "There is already two counters - prev_counter=%d, current_counter=%d", prev_counter, current_counter);
+
+    if (current_counter != INVALID_POINTER) {
+        prev_counter = current_counter;
+        add_counter(prev_counter, plat_stop_cpu_counter());
+        my_printf_debug("Stopping outer CPU counter %d" NEWLINE, prev_counter);
+    }
+    my_printf_debug("Start CPU counter %d" NEWLINE, mem_ptr);
+    current_counter = mem_ptr;
+    plat_start_cpu_counter();
+}
+
+void stop_cpu_counter(void) {
+#if ENABLE_DEMO_COUNTERS
+    return;
+#endif
+
+    MY_ASSERT(current_counter != INVALID_POINTER);
+
+    my_printf_debug("Stop inner CPU counter %d" NEWLINE, current_counter);
+    add_counter(current_counter, plat_stop_cpu_counter());
+    if (prev_counter != INVALID_POINTER) {
+        current_counter = prev_counter;
+        my_printf_debug("Restarting outer CPU counter %d" NEWLINE, current_counter);
+        plat_start_cpu_counter();
+        prev_counter = INVALID_POINTER;
+    } else {
+        current_counter = INVALID_POINTER;
+    }
+}
+
 void report_progress() {
 #if ENABLE_DEMO_COUNTERS
     static uint8_t last_progress = 0;
@@ -104,13 +153,13 @@ void report_progress() {
     if (!total_jobs) {
         return;
     }
-    uint32_t cur_jobs = counters()->job_preservation / 2;
+    uint32_t cur_jobs = (get_counter(offsetof(Counters, nvm_write_linear_jobs)) + get_counter(offsetof(Counters, nvm_write_non_linear_jobs))) / 2;
     uint8_t cur_progress = 100 * cur_jobs / total_jobs;
     // report only when the percentage is changed to avoid high UART overheads
     if (cur_progress != last_progress) {
         my_printf("P,%d,%d,", cur_progress,
-                  counters()->job_preservation/1024);
-        my_printf("%d" NEWLINE, counters()->footprint_preservation/1024);
+                  cur_jobs/1024);
+        my_printf("%d" NEWLINE, get_counter(offsetof(Counters, nvm_write_footprints))/1024);
         last_progress = cur_progress;
     }
 #endif

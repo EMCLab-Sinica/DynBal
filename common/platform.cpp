@@ -59,16 +59,16 @@ void my_memcpy_to_param(ParameterInfo *param, uint16_t offset_in_word, const voi
 #if JAPARI
     uint16_t n_footprints = n / (BATCH_SIZE + 1);
     n_jobs = n - n_footprints;
-    counters()->nvm_write_footprints += n_footprints;
+    add_counter(offsetof(Counters, nvm_write_footprints), n_footprints);
     my_printf_debug("Recorded %u bytes of footprints written to NVM" NEWLINE, n_footprints);
 #else
     n_jobs = n;
 #endif // JAPARI
     if (is_linear) {
-        counters()->nvm_write_linear_jobs += n_jobs;
+        add_counter(offsetof(Counters, nvm_write_linear_jobs), n_jobs);
         my_printf_debug("Recorded %u bytes of linear jobs written to NVM" NEWLINE, n_jobs);
     } else {
-        counters()->nvm_write_non_linear_jobs += n_jobs;
+        add_counter(offsetof(Counters, nvm_write_non_linear_jobs), n_jobs);
         my_printf_debug("Recorded %u bytes of non-linear jobs written to NVM" NEWLINE, n_jobs);
     }
 #endif
@@ -79,8 +79,8 @@ void my_memcpy_to_param(ParameterInfo *param, uint16_t offset_in_word, const voi
 void my_memcpy_from_intermediate_values(void *dest, const ParameterInfo *param, uint16_t offset_in_word, size_t n) {
 #if ENABLE_COUNTERS
     if (counters_enabled) {
-        counters()->nvm_read_job_outputs += n;
-        my_printf_debug("Recorded %lu bytes of job outputs fetched from NVM, accumulated=%" PRIu32 NEWLINE, n, counters()->nvm_read_job_outputs);
+        add_counter(offsetof(Counters, nvm_read_job_outputs), n);
+        my_printf_debug("Recorded %lu bytes of job outputs fetched from NVM, accumulated=%" PRIu32 NEWLINE, n, get_counter(offsetof(Counters, nvm_read_job_outputs)));
     }
 #endif
     read_from_nvm(dest, intermediate_values_offset(param->slot) + offset_in_word * sizeof(int16_t), n);
@@ -89,8 +89,8 @@ void my_memcpy_from_intermediate_values(void *dest, const ParameterInfo *param, 
 void read_from_samples(void *dest, uint16_t offset_in_word, size_t n) {
 #if ENABLE_COUNTERS
     if (counters_enabled) {
-        counters()->nvm_read_job_outputs += n;
-        my_printf_debug("Recorded %lu bytes of samples fetched from NVM, accumulated=%" PRIu32 NEWLINE, n, counters()->nvm_read_job_outputs);
+        add_counter(offsetof(Counters, nvm_read_job_outputs), n);
+        my_printf_debug("Recorded %lu bytes of samples fetched from NVM, accumulated=%" PRIu32 NEWLINE, n, get_counter(offsetof(Counters, nvm_read_job_outputs)));
     }
 #endif
     read_from_nvm(dest, SAMPLES_OFFSET + (sample_idx % LABELS_DATA_LEN) * 2*TOTAL_SAMPLE_SIZE + offset_in_word * sizeof(int16_t), n);
@@ -99,7 +99,7 @@ void read_from_samples(void *dest, uint16_t offset_in_word, size_t n) {
 ParameterInfo* get_intermediate_parameter_info(uint16_t i) {
 #if ENABLE_COUNTERS
     if (counters_enabled) {
-        counters()->nvm_read_model += sizeof(ParameterInfo);
+        add_counter(offsetof(Counters, nvm_read_model), sizeof(ParameterInfo));
         my_printf_debug("Recorded %lu bytes of ParameterInfo fetched from NVM" NEWLINE, sizeof(ParameterInfo));
     }
 #endif
@@ -114,7 +114,7 @@ ParameterInfo* get_intermediate_parameter_info(uint16_t i) {
 void commit_intermediate_parameter_info(uint16_t i) {
 #if ENABLE_COUNTERS
     if (counters_enabled) {
-        counters()->nvm_write_model += sizeof(ParameterInfo);
+        add_counter(offsetof(Counters, nvm_write_model), sizeof(ParameterInfo));
         my_printf_debug("Recorded %lu bytes of ParameterInfo written NVM" NEWLINE, sizeof(ParameterInfo));
     }
 #endif
@@ -145,7 +145,7 @@ void commit_model(void) {
     commit_versioned_data<Model>(0);
     // send finish signals only after the whole network has really finished
 #if ENABLE_COUNTERS
-    counters()->power_counters++;
+    add_counter(offsetof(Counters, power_counters), 1);
 #endif
     if (!model_vm.running) {
         notify_model_finished();
@@ -180,7 +180,7 @@ void write_to_nvm_segmented(const uint8_t* vm_buffer, uint32_t nvm_offset, uint3
 
 void record_overflow_handling_overhead(uint32_t cycles) {
 #if ENABLE_COUNTERS
-    counters()->overflow_handling += cycles;
+    add_counter(offsetof(Counters, overflow_handling), cycles);
 #endif
 }
 
