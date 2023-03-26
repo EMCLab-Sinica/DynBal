@@ -19,9 +19,13 @@ public:
     {
         output_tile_c_largest_local_minimum = nearest_value(ParameterDimension::OutputTileChannel, output_tile_c, /*not_larger_than=*/true);
         input_tile_c_largest_local_minimum = nearest_value(ParameterDimension::InputTileChannel, input_tile_c, /*not_larger_than=*/true);
+
+        n_input_values = layer_dims.H * layer_dims.W * layer_dims.CHANNEL;
+        n_filter_values = layer_dims.N_FILTERS * layer_dims.kH * layer_dims.kW * layer_dims.CHANNEL;
     }
-    uint16_t nearest_value(uint8_t dim_idx, uint16_t dim_value, bool not_larger_than) const;
-    uint32_t calc(uint8_t dim_idx, uint16_t dim_value) const;
+    uint16_t nearest_value(uint8_t dim_idx, uint16_t dim_value, bool not_larger_than) const override;
+    uint32_t data_reuse_cost(uint8_t dim_idx, uint16_t dim_value) const override;
+    uint32_t data_refetch_cost(uint8_t dim_idx, uint16_t dim_value) const override;
 
     enum ParameterDimension {
         InputTileChannel,
@@ -37,6 +41,9 @@ private:
     uint16_t input_tile_c_largest_local_minimum;
     uint16_t output_tile_c_largest_local_minimum;
     uint32_t power_cycle_energy;
+
+    uint32_t n_input_values;
+    uint32_t n_filter_values;
 };
 
 void update_progress_indicator_conv(const Node* node, NodeFlags* flags, const NodeFlags* orig_flags, const ConvLayerDimensions& layer_dims, uint32_t first_unfinished_job_idx);

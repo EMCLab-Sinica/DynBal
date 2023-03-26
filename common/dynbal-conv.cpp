@@ -13,16 +13,12 @@
 
 static const uint32_t NVM_READ_COST = FRAM_FREQ_DIVIDER*8*sizeof(int16_t)*4/13;
 
-uint32_t UsageSpanConv::calc(uint8_t dim_idx, uint16_t dim_value) const {
-    uint32_t n_input_values, n_filter_values, n_one_filter_values;
+uint32_t UsageSpanConv::data_reuse_cost(uint8_t dim_idx, uint16_t dim_value) const {
     uint32_t input_fetch, filter_fetch, partial_sum_cost, data_reuse_cost;
     uint8_t n_tiles_c, n_filter_tiles_c;
 
     uint16_t cur_input_tile_c = (dim_idx == ParameterDimension::InputTileChannel) ? dim_value : input_tile_c;
     uint16_t cur_output_tile_c = (dim_idx == ParameterDimension::OutputTileChannel) ? dim_value : output_tile_c;
-    n_input_values = layer_dims.H * layer_dims.W * layer_dims.CHANNEL;
-    n_filter_values = layer_dims.N_FILTERS * layer_dims.kH * layer_dims.kW * layer_dims.CHANNEL;
-    n_one_filter_values = cur_input_tile_c * layer_dims.kH * layer_dims.kW;
     n_tiles_c = upper_gauss(layer_dims.CHANNEL, cur_input_tile_c);
 
     // Data reuse cost
@@ -36,22 +32,34 @@ uint32_t UsageSpanConv::calc(uint8_t dim_idx, uint16_t dim_value) const {
     );
     data_reuse_cost = input_fetch + filter_fetch + partial_sum_cost;
 
+    my_printf_debug("partial_sum_cost=%" PRIu32 NEWLINE, partial_sum_cost);
+    my_printf_debug("data_reuse_cost=%" PRIu32 NEWLINE, data_reuse_cost);
+
+    return data_reuse_cost;
+}
+
+uint32_t UsageSpanConv::data_refetch_cost(uint8_t dim_idx, uint16_t dim_value) const {
+    uint32_t n_one_filter_values;
+
+    uint16_t cur_input_tile_c = (dim_idx == ParameterDimension::InputTileChannel) ? dim_value : input_tile_c;
+    uint16_t cur_output_tile_c = (dim_idx == ParameterDimension::OutputTileChannel) ? dim_value : output_tile_c;
+
+    n_one_filter_values = cur_input_tile_c * layer_dims.kH * layer_dims.kW;
+
     // Data refetch cost
     // TODO: compare with counters
-    uint64_t input_cost, filter_cost, data_refetch_cost, usage_span;
+    uint64_t input_cost, filter_cost, data_refetch_cost;
     input_cost = cur_output_tile_c * n_one_filter_values;
     filter_cost = cur_output_tile_c * n_one_filter_values * layer_dims.OUTPUT_H * layer_dims.OUTPUT_W;
     // memory costs
     input_cost += NVM_READ_COST * n_one_filter_values;
     filter_cost += NVM_READ_COST * n_one_filter_values * cur_output_tile_c;
     data_refetch_cost = (input_cost * n_input_values + filter_cost * n_filter_values) / power_cycle_energy;
-    usage_span = data_reuse_cost + data_refetch_cost;
 
-    my_printf_debug("input_cost=%" PRIu64 " filter_cost=%" PRIu64 " partial_sum_cost=%" PRIu32 NEWLINE, input_cost, filter_cost, partial_sum_cost);
-    my_printf_debug("n_input_values=%" PRIu32 " n_filter_values=%" PRIu32 NEWLINE, n_input_values, n_filter_values);
-    my_printf_debug("data_reuse_cost=%" PRIu32 " data_refetch_cost=%" PRIu64 " usage_span=%" PRIu64 NEWLINE, data_reuse_cost, data_refetch_cost, usage_span);
+    my_printf_debug("input_cost=%" PRIu64 " filter_cost=%" PRIu64 NEWLINE, input_cost, filter_cost);
+    my_printf_debug("data_refetch_cost=%" PRIu64 NEWLINE, data_refetch_cost);
 
-    return usage_span;
+    return data_refetch_cost;
 }
 
 uint16_t UsageSpanConv::nearest_value(uint8_t dim_idx, uint16_t dim_value, bool not_larger_than) const {

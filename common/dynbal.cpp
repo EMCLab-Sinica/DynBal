@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <cinttypes>
 #include "double_buffering.h"
 #include "dynbal.h"
 #include "my_debug.h"
@@ -33,6 +34,16 @@ void commit_inference_stats(InferenceStatsOpType op_type) {
     const InferenceStats* stats = &inference_stats_vm[op_type_idx];
     my_printf_debug("Saving inference stats op_type=%d power_cycle_energy=%d, last_progress_indicator=%d" NEWLINE, op_type_idx, stats->power_cycle_energy, stats->last_progress_indicator);
     commit_versioned_data<InferenceStats>(op_type_idx);
+}
+
+uint32_t UsageSpan::calc(uint8_t dim_idx, uint16_t dim_value) const {
+    uint32_t usage_span;
+
+    usage_span = data_reuse_cost(dim_idx, dim_value) + data_refetch_cost(dim_idx, dim_value);
+
+    my_printf_debug("usage_span=%" PRIu32 NEWLINE, usage_span);
+
+    return usage_span;
 }
 
 uint16_t convex_search(const UsageSpan* usage_span, uint8_t dim_idx, const uint16_t value_ranges[][2]) {

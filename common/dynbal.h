@@ -12,7 +12,9 @@ const uint32_t NVM_RELATIVE_WRITE_COST = 1; // the ratio of NVM write cost and N
 
 class UsageSpan {
 public:
-    virtual uint32_t calc(uint8_t dim_idx, uint16_t dim_value) const = 0;
+    virtual uint32_t calc(uint8_t dim_idx, uint16_t dim_value) const final;
+    virtual uint32_t data_reuse_cost(uint8_t dim_idx, uint16_t dim_value) const = 0;
+    virtual uint32_t data_refetch_cost(uint8_t dim_idx, uint16_t dim_value) const = 0;
     virtual uint16_t nearest_value(uint8_t dim_idx, uint16_t dim_value, bool not_larger_than) const = 0;
 };
 

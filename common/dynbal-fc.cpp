@@ -14,15 +14,11 @@
 // tile_channel: convex
 // tile_width: convex
 
-uint32_t UsageSpanFc::calc(uint8_t dim_idx, uint16_t dim_value) const {
-    uint32_t n_input_values, n_filter_values;
+uint32_t UsageSpanFc::data_reuse_cost(uint8_t dim_idx, uint16_t dim_value) const {
     uint32_t input_fetch, filter_fetch, partial_sum_cost, data_reuse_cost;
     uint8_t n_tiles_c;
 
     uint16_t cur_tile_channel = (dim_idx == ParameterDimension::TileChannel) ? dim_value : tile_channel;
-    uint16_t cur_tile_width = (dim_idx == ParameterDimension::TileWidth) ? dim_value : tile_width;
-    n_input_values = layer_dims.A_rows * layer_dims.A_cols;
-    n_filter_values = layer_dims.A_cols * layer_dims.B_cols;
     n_tiles_c = upper_gauss(layer_dims.A_cols, cur_tile_channel);
 
     my_printf_debug("cur_tile_channel=%d n_tiles_c=%d" NEWLINE, cur_tile_channel, n_tiles_c);
@@ -37,18 +33,26 @@ uint32_t UsageSpanFc::calc(uint8_t dim_idx, uint16_t dim_value) const {
     );
     data_reuse_cost = input_fetch + filter_fetch + partial_sum_cost;
 
+    my_printf_debug("data_reuse_cost=%" PRIu32 NEWLINE, data_reuse_cost);
+
+    return data_reuse_cost;
+}
+
+uint32_t UsageSpanFc::data_refetch_cost(uint8_t dim_idx, uint16_t dim_value) const {
+    uint16_t cur_tile_channel = (dim_idx == ParameterDimension::TileChannel) ? dim_value : tile_channel;
+    uint16_t cur_tile_width = (dim_idx == ParameterDimension::TileWidth) ? dim_value : tile_width;
+
     // Data refetch cost
     // TODO: compare with counters
-    uint32_t input_cost, filter_cost, data_refetch_cost, usage_span;
+    uint32_t input_cost, filter_cost, data_refetch_cost;
     input_cost = cur_tile_channel * cur_tile_width;
     filter_cost = cur_tile_channel;
     // memory costs?
     data_refetch_cost = (input_cost * n_input_values + filter_cost * n_filter_values) / power_cycle_energy;
-    usage_span = data_reuse_cost + data_refetch_cost;
 
-    my_printf_debug("data_reuse_cost=%" PRIu32 " data_refetch_cost=%" PRIu32 " usage_span=%" PRIu32 NEWLINE, data_reuse_cost, data_refetch_cost, usage_span);
+    my_printf_debug("data_refetch_cost=%" PRIu32 NEWLINE, data_refetch_cost);
 
-    return usage_span;
+    return data_refetch_cost;
 }
 
 uint16_t UsageSpanFc::nearest_value(uint8_t dim_idx, uint16_t dim_value, bool not_larger_than) const {

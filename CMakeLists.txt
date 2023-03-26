@@ -17,7 +17,7 @@ else ()
 endif ()
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS} -Wstrict-prototypes -std=c11")
 # Don't use something that require C++17 or newer, which are not supported by MSP-CGT yet
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS} -std=c++14 -Wold-style-cast")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS} -std=c++14 -Wold-style-cast -Wsuggest-override")
 endif ()
 
 if (USE_PROTOBUF)
