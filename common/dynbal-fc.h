@@ -13,6 +13,8 @@ public:
         : layer_dims(_layer_dims)
         , tile_channel(_tile_channel)
         , tile_width(_tile_width)
+        , tile_channel_largest_local_minimum(_tile_channel)
+        , tile_width_largest_local_minimum(_tile_width)
         , power_cycle_energy(_power_cycle_energy)
     {
         tile_channel_largest_local_minimum = nearest_value(ParameterDimension::TileChannel, tile_channel, /*not_larger_than=*/true);

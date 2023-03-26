@@ -72,8 +72,10 @@ uint16_t UsageSpanFc::nearest_value(uint8_t dim_idx, uint16_t dim_value, bool no
     }
     // tile_channel should be multiple of op_filters, see determine_gemm_tile_sizes()
     uint16_t ret = (dim_original_value / tmp) / OP_FILTERS * OP_FILTERS;
+    ret = MAX_VAL(ret, OP_FILTERS);
     ret = LIMIT_DMA_SIZE(MIN_VAL(ret, dim_upper_bound));
     my_printf_debug("ret=%d" NEWLINE, ret);
+    MY_ASSERT(ret);
     return ret;
 }
 
