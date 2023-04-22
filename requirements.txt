@@ -1,17 +1,17 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
-cffi==1.15.0
+cffi==1.15.1
 filelock==3.4.2
-numpy==1.22.3
-onnx==1.12.0
-onnxoptimizer==0.3.7
-onnxruntime==1.14.1
-tensorflow==2.8.0
+numpy==1.23.5
+onnx==1.13.1
+onnxoptimizer==0.3.13
+onnxruntime==1.14.1 # Need a new version for Python 3.11 https://github.com/microsoft/onnxruntime/issues/13482
+tensorflow==2.12.0
 # Versions of torchaudio and torchvision should match torch
 # https://github.com/pytorch/vision#installation
 # https://pytorch.org/audio/main/installation.html#compatibility-matrix
-torch==1.11.0+cpu
-torchaudio==0.11.0+cpu
-torchvision==0.12.0+cpu
+torch==2.0.0+cpu
+torchaudio==2.0.1+cpu
+torchvision==0.15.1+cpu
 # pandas needed for deep-learning-HAR
-pandas==1.4.1
+pandas==1.5.3
 platformdirs==2.5.0

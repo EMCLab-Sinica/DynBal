@@ -23,7 +23,7 @@ def load_data_cifar10(train: bool, target_size: tuple[int, int]) -> ModelData:
     xdg_cache_home = platformdirs.user_cache_path()
     transforms = Compose([
         ToTensor(),
-        Resize(size=target_size[-2:]),  # H and W from NCHW of ONNX
+        Resize(size=target_size[-2:], antialias=True),  # H and W from NCHW of ONNX
     ])
     with filelock.FileLock(xdg_cache_home / 'cifar10.lock'):
         dataset = torchvision.datasets.CIFAR10(root=xdg_cache_home, train=train, download=True, transform=transforms)
