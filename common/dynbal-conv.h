@@ -31,8 +31,6 @@ public:
         InputTileChannel,
         OutputTileChannel,
     };
-protected:
-    uint32_t data_reuse_cost() const;
 
 private:
     const ConvLayerDimensions& layer_dims;
