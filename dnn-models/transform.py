@@ -51,6 +51,7 @@ from layer_utils import (
 )
 from dynbal import (
     parameter_importance,
+    walk_search_space,
 )
 
 logging.basicConfig()
@@ -368,6 +369,7 @@ outputs = {
     'model_parameters_info': io.BytesIO(),
     'intermediate_parameters_info': io.BytesIO(),
     'labels': io.BytesIO(),
+    'exhaustive_lookup_table': io.BytesIO(),
 }
 
 Constants.MODEL_NODES_LEN = len(nodes)
@@ -582,6 +584,8 @@ if Constants.STATEFUL:
     min_range = find_min_range(onnx_model, nodes, node_flags, config, Constants.N_INPUT)
     if min_range < max_output_tile_size:
         Constants.USE_STATES_ARRAY = 1
+
+walk_search_space(nodes, node_flags, outputs['exhaustive_lookup_table'])
 
 pathlib.Path(args.data_output_dir).mkdir(exist_ok=True)
 

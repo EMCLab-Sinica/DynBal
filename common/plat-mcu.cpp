@@ -213,6 +213,10 @@ void IntermittentCNNTest() {
         // For platforms where counters are recorded in VM (ex: MSP432)
         print_all_counters();
 
+        // for exhaustive search, which uses run_counter as the index of configurations
+        get_model()->run_counter = 0;
+        commit_model();
+
         while (1);
     }
 

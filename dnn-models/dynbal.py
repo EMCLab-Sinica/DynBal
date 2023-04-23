@@ -3,6 +3,7 @@ import logging
 
 import numpy
 
+from utils import to_bytes
 from model_utils import (
     dims_from_value_info,
     find_tensor_value_info,
@@ -175,3 +176,30 @@ def parameter_importance(onnx_model, nodes):
             parameter_importance_conv(onnx_model, node, power_cycle_energy)
         elif node.op_type == 'Gemm':
             parameter_importance_fc(onnx_model, node, power_cycle_energy)
+
+def walk_search_space(nodes, node_flags, exhaustive_lookup_table):
+    search_space_size = 0
+    exhaustive_search_step = 4
+    search_step = 2
+    for node_idx, (node, cur_node_flags) in enumerate(zip(nodes, node_flags)):
+        if node.op_type == 'Conv':
+            for input_tile_c in range(exhaustive_search_step, cur_node_flags.conv.input_tile_c, exhaustive_search_step):
+                exhaustive_lookup_table.write(to_bytes(node_idx))
+                exhaustive_lookup_table.write(to_bytes(0))  # dim_idx
+                exhaustive_lookup_table.write(to_bytes(input_tile_c))
+            for output_tile_c in range(exhaustive_search_step, cur_node_flags.conv.output_tile_c, exhaustive_search_step):
+                exhaustive_lookup_table.write(to_bytes(node_idx))
+                exhaustive_lookup_table.write(to_bytes(1))  # dim_idx
+                exhaustive_lookup_table.write(to_bytes(output_tile_c))
+            search_space_size += int(cur_node_flags.conv.input_tile_c / search_step) * int(cur_node_flags.conv.output_tile_c / search_step)
+        elif node.op_type == 'Gemm':
+            for tile_channel in range(exhaustive_search_step, cur_node_flags.gemm.tile_channel, exhaustive_search_step):
+                exhaustive_lookup_table.write(to_bytes(node_idx))
+                exhaustive_lookup_table.write(to_bytes(0))  # dim_idx
+                exhaustive_lookup_table.write(to_bytes(tile_channel))
+            for tile_width in range(exhaustive_search_step, cur_node_flags.gemm.tile_width, exhaustive_search_step):
+                exhaustive_lookup_table.write(to_bytes(node_idx))
+                exhaustive_lookup_table.write(to_bytes(0))  # dim_idx
+                exhaustive_lookup_table.write(to_bytes(tile_width))
+            search_space_size += int(cur_node_flags.gemm.tile_channel / search_step) * int(cur_node_flags.gemm.tile_width / search_step)
+    logger.info('Search space size: %d', search_space_size)

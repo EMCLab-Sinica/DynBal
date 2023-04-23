@@ -12,6 +12,7 @@
 #include "platform.h"
 #include "dynbal.h"
 #include "dynbal-conv.h"
+#include "layers.h"
 
 #define ON_DEMAN_TILE_LOADING 1
 
@@ -663,6 +664,35 @@ void alloc_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outpu
 #endif
 }
 
+#if RuntimeConfiguration == Exhaustive
+static void adapt_conv(ConvTaskParams* conv_params) {
+    const uint16_t N_AVERAGE = 1;    // Using average of N_AVERAGE end-to-end inference latencies for each tile size
+    uint16_t iteration_idx = conv_params->model->run_counter / N_AVERAGE;
+    uint16_t N_ITERATIONS = EXHAUSTIVE_LOOKUP_TABLE_DATA_LEN / sizeof(ExhaustiveLookupTable);
+    iteration_idx %= N_ITERATIONS;
+    const ExhaustiveLookupTable* current_config = reinterpret_cast<const ExhaustiveLookupTable*>(exhaustive_lookup_table_data) + iteration_idx;
+    uint16_t node_idx = conv_params->output->parameter_info_idx - N_INPUT;
+    if (current_config->node_idx == node_idx) {
+        conv_params->flags->conv.output_tile_c = current_config->conv_output_tile_c;
+    } else {
+        conv_params->flags->conv.output_tile_c = conv_params->orig_flags->conv.output_tile_c;
+    }
+    my_printf_debug("Selected output_tile_c: %d" NEWLINE, conv_params->flags->conv.output_tile_c);
+
+    if (conv_params->model->run_counter % N_AVERAGE == 0) {
+        // my_printf("%d %d" NEWLINE, node_idx, conv_params->flags->conv.output_tile_c);
+        // Start of an end-to-end inference
+        if (node_idx == 0) {
+            // notify_exhaustive_new_value();
+        }
+        // Start adjusting a new layer
+        if (conv_params->flags->conv.output_tile_c == 4) {
+            // notify_exhaustive_new_layer();
+        }
+    }
+}
+#endif
+
 void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *output, const Node* node, NodeFlags*, const NodeFlags*) {
     const ParameterInfo *conv_input = input[0], *conv_filter = input[1], *conv_bias = (node->inputs_len == 3) ? input[2] : nullptr;
     my_printf_debug("Conv!" NEWLINE);
@@ -749,6 +779,14 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     // = happens when all values are finished
     MY_ASSERT(conv_params->input_tile_c_index <= conv_params->n_tiles_c);
     stop_cpu_counter();
+#endif
+
+#if RuntimeConfiguration == Exhaustive
+    if (first_unfinished_job_idx == 0) {
+        // Starting a new layer
+        adapt_conv(conv_params);
+        commit_node_flags(conv_params->flags);
+    }
 #endif
 
 #if INTERMITTENT && (RuntimeConfiguration == DynBal || ENABLE_DEMO_COUNTERS)
