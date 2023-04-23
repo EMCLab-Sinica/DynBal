@@ -12,7 +12,6 @@ tensorflow==2.8.0
 torch==1.11.0+cpu
 torchaudio==0.11.0+cpu
 torchvision==0.12.0+cpu
-torchdatasets==0.2.0
 # pandas needed for deep-learning-HAR
 pandas==1.4.1
 platformdirs==2.5.0
