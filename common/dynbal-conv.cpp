@@ -2,6 +2,7 @@
 #include <cmath>
 #include "cnn_common.h"
 #include "conv.h"
+#include "counters.h"
 #include "dynbal-conv.h"
 #include "layers.h"
 #include "my_debug.h"
@@ -39,6 +40,10 @@ uint32_t UsageSpanConv::data_reuse_cost(uint8_t dim_idx, uint16_t dim_value) con
 }
 
 uint32_t UsageSpanConv::data_refetch_cost(uint8_t dim_idx, uint16_t dim_value) const {
+    if (!power_cycle_energy) {
+        return 0;
+    }
+
     uint32_t n_one_filter_values;
 
     uint16_t cur_input_tile_c = (dim_idx == ParameterDimension::InputTileChannel) ? dim_value : input_tile_c;
@@ -82,7 +87,6 @@ uint16_t UsageSpanConv::nearest_value(uint8_t dim_idx, uint16_t dim_value, bool 
     return ret;
 }
 
-#if RuntimeConfiguration == DynBal
 void adapt_conv_dynbal(const Node* node, NodeFlags* node_flags, const NodeFlags* orig_flags, const UsageSpanConv* usage_span, uint32_t power_cycle_energy) {
     uint16_t output_tile_c_upper = orig_flags->conv.output_tile_c, output_tile_c_lower = 2;
     uint16_t input_tile_c_upper = orig_flags->conv.input_tile_c, input_tile_c_lower = 2;
@@ -91,6 +95,12 @@ void adapt_conv_dynbal(const Node* node, NodeFlags* node_flags, const NodeFlags*
         { output_tile_c_lower, output_tile_c_upper }
     };
     for (uint8_t dim_idx : node->parameters_by_importance) {
+#if ENABLE_DEMO_COUNTERS
+        if (dim_idx == UsageSpanConv::ParameterDimension::InputTileChannel) {
+            // progress updates for demo relies on a fixed number of jobs, which may not be the case with dynamic input_tile_c
+            continue;
+        }
+#endif
         uint16_t new_dim_value = convex_search(usage_span, dim_idx, value_ranges);
         if (!read_gpio_flag(GPIOFlag::DisableDynBalReconfiguration)) {
             if (dim_idx == UsageSpanConv::ParameterDimension::OutputTileChannel) {
@@ -114,6 +124,7 @@ void update_progress_indicator_conv(const Node* node, NodeFlags* node_flags, con
     const UsageSpanConv usage_span(layer_dims, orig_flags->conv.input_tile_c, orig_flags->conv.output_tile_c, stats->power_cycle_energy);
 
     if (first_unfinished_job_idx == 0) {
+#if RuntimeConfiguration == DynBal
         if (!read_gpio_flag(GPIOFlag::DisableDynBalSearch)) {
             // Starting a new layer
             if (stats->power_cycle_energy) {
@@ -123,6 +134,7 @@ void update_progress_indicator_conv(const Node* node, NodeFlags* node_flags, con
                 my_printf_debug("Skipping runtime reconfiguration!" NEWLINE);
             }
         }
+#endif
         // Cleanup stats from the previous layer
         stats->last_progress_indicator = 0;
         commit_inference_stats(InferenceStatsOpType::Conv);
@@ -152,5 +164,4 @@ void update_progress_indicator_conv(const Node* node, NodeFlags* node_flags, con
         commit_inference_stats(InferenceStatsOpType::Conv);
     }
 }
-#endif
 

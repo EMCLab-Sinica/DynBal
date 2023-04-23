@@ -751,11 +751,30 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     stop_cpu_counter();
 #endif
 
-#if INTERMITTENT && RuntimeConfiguration == DynBal
+#if INTERMITTENT && (RuntimeConfiguration == DynBal || ENABLE_DEMO_COUNTERS)
     update_progress_indicator_conv(node, conv_params->flags, conv_params->orig_flags, conv_params->layer_dims, first_unfinished_job_idx);
 #endif
     conv_params->n_tiles_c = upper_gauss(CHANNEL, conv_params->flags->conv.input_tile_c);
     output->params_len = conv_params->n_tiles_c * layer_dims->OUTPUT_H * layer_dims->OUTPUT_W * layer_dims->OUTPUT_CHANNEL * sizeof(int16_t);
+
+#if ENABLE_DEMO_COUNTERS
+    if (first_unfinished_job_idx == 0) {
+        uint16_t last_reported_layer_idx = static_cast<uint16_t>(-1);
+        read_from_nvm(&last_reported_layer_idx, LAST_REPORTED_LAYER_IDX_OFFSET, sizeof(uint16_t));
+        // really report costs only once per layer to avoid non-termination
+        if (last_reported_layer_idx != conv_params->model->layer_idx) {
+            InferenceStats* stats = load_inference_stats_from_nvm(InferenceStatsOpType::Conv);
+            const UsageSpanConv usage_span(*layer_dims, conv_params->flags->conv.input_tile_c, conv_params->flags->conv.output_tile_c, stats->power_cycle_energy);
+
+            uint32_t data_reuse_cost = usage_span.data_reuse_cost(UsageSpanConv::ParameterDimension::InputTileChannel, conv_params->flags->conv.input_tile_c);
+            uint32_t data_refetch_cost = usage_span.data_refetch_cost(UsageSpanConv::ParameterDimension::InputTileChannel, conv_params->flags->conv.input_tile_c);
+            my_printf("U,%" PRIu32 ",%" PRIu32 NEWLINE, data_reuse_cost/1024, data_refetch_cost/1024);
+
+            last_reported_layer_idx = conv_params->model->layer_idx;
+            write_to_nvm(&last_reported_layer_idx, LAST_REPORTED_LAYER_IDX_OFFSET, sizeof(uint16_t));
+        }
+    }
+#endif
 
     int16_t input_channels = conv_filter->dims[1];
     for (; conv_params->input_tile_c_offset < input_channels; conv_params->input_tile_c_offset += conv_params->flags->conv.input_tile_c) {

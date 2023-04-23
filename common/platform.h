@@ -12,6 +12,7 @@
 /* offsets for data on NVM */
 
 // growing up (like heap). Not starting from zero as first few 16 bytes are for testing (see testSPI() function)
+#define LAST_REPORTED_LAYER_IDX_OFFSET 16
 #define INTERMEDIATE_VALUES_OFFSET 256
 #define SAMPLES_OFFSET (INTERMEDIATE_VALUES_OFFSET + NUM_SLOTS * INTERMEDIATE_VALUES_SIZE)
 #define PARAMETERS_OFFSET (SAMPLES_OFFSET + SAMPLES_DATA_LEN)
