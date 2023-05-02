@@ -71,6 +71,9 @@ uint16_t get_next_slot(Model *model, const ParameterInfo *param) {
             next_slot_id = 0;
             cycle_count++;
             MY_ASSERT(cycle_count <= 1);
+            if (cycle_count > 1) {
+                while (1);
+            }
         }
         int16_t slot_user_id = get_slot_info(model, next_slot_id)->user;
         if (slot_user_id < 0) {
