@@ -26,6 +26,8 @@
 #define NODES_OFFSET (NODE_FLAGS_OFFSET - NODES_DATA_LEN)
 #define FOOTPRINTS_OFFSET (NODES_OFFSET - FOOTPRINTS_DATA_LEN)
 
+#define DISABLE_FEATURE_MAP_NVM_ACCESS 0
+
 struct ParameterInfo;
 struct Model;
 struct Counters;
