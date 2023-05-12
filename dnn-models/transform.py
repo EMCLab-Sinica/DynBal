@@ -565,7 +565,8 @@ def nvm_layout():
     remaining_size -= 2*config['total_sample_size']
     # intermediate_values_size should < 65536, or TI's compiler gets confused
     Constants.INTERMEDIATE_VALUES_SIZE = int((remaining_size / config['num_slots']) / 16) * 16
-    if args.target == 'msp430':
+    if args.target == 'msp430' or True:
+        # TODO: remove the limitation for non-MSP430 platforms. It is there as turning points are 16-bit.
         Constants.INTERMEDIATE_VALUES_SIZE = min(Constants.INTERMEDIATE_VALUES_SIZE, 65534)
     logger.debug('INTERMEDIATE_VALUES_SIZE=%d', Constants.INTERMEDIATE_VALUES_SIZE)
 
