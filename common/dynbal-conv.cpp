@@ -3,6 +3,7 @@
 #include "cnn_common.h"
 #include "conv.h"
 #include "counters.h"
+#include "data.h"
 #include "dynbal-conv.h"
 #include "layers.h"
 #include "my_debug.h"
@@ -87,9 +88,16 @@ uint16_t UsageSpanConv::nearest_value(uint8_t dim_idx, uint16_t dim_value, bool 
     return ret;
 }
 
-void adapt_conv_dynbal(const Node* node, NodeFlags* node_flags, const NodeFlags* orig_flags, const UsageSpanConv* usage_span, uint32_t power_cycle_energy) {
+static void adapt_conv_dynbal(const Node* node, NodeFlags* node_flags, const NodeFlags* orig_flags, const ConvLayerDimensions* layer_dims, const UsageSpanConv* usage_span, uint32_t power_cycle_energy) {
     uint16_t output_tile_c_upper = orig_flags->conv.output_tile_c, output_tile_c_lower = 2;
-    uint16_t input_tile_c_upper = orig_flags->conv.input_tile_c, input_tile_c_lower = 2;
+    /*
+        n_tiles_c = upper_gauss(CHANNEL, input_tile_c)
+        params_len = n_tiles_c * OUTPUT_H * OUTPUT_W * OUTPUT_CHANNEL * sizeof(int16_t)
+        params_len <= INTERMEDIATE_VALUES_SIZE
+     */
+    uint16_t max_n_tiles_c = INTERMEDIATE_VALUES_SIZE / (layer_dims->OUTPUT_H * layer_dims->OUTPUT_W * layer_dims->OUTPUT_CHANNEL * sizeof(int16_t));
+    uint16_t input_tile_c_upper = orig_flags->conv.input_tile_c,
+             input_tile_c_lower = MAX_VAL(2, layer_dims->CHANNEL / max_n_tiles_c);
     const uint16_t value_ranges[2][2] = {
         { input_tile_c_lower,  input_tile_c_upper },
         { output_tile_c_lower, output_tile_c_upper }
@@ -128,7 +136,7 @@ void update_progress_indicator_conv(const Node* node, NodeFlags* node_flags, con
         if (!read_gpio_flag(GPIOFlag::DisableDynBalSearch)) {
             // Starting a new layer
             if (stats->power_cycle_energy) {
-                adapt_conv_dynbal(node, node_flags, orig_flags, &usage_span, stats->power_cycle_energy);
+                adapt_conv_dynbal(node, node_flags, orig_flags, &layer_dims, &usage_span, stats->power_cycle_energy);
                 commit_node_flags(node_flags);
             } else {
                 my_printf_debug("Skipping runtime reconfiguration!" NEWLINE);
