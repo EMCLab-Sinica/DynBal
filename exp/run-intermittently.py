@@ -36,15 +36,17 @@ def run_one_inference(program, interval, logfile, shutdown_after_writes, power_c
             if proc.returncode == 2:
                 # simulated power failure
                 continue
+
+            logfile.seek(0, 2)
+            file_size = logfile.tell()
+            logfile.seek(-(CHUNK_SIZE if file_size > CHUNK_SIZE else file_size), 2)
+            last_chunk = logfile.read()
+            print('\n'.join(last_chunk.decode('ascii').split('\n')[-CHUNK_LINES:]))
+
             if proc.returncode in (1, -signal.SIGFPE, -signal.SIGSEGV, -signal.SIGBUS):
                 logger.error('Program crashed!')
                 return 2
             if proc.returncode == 0:
-                logfile.seek(0, 2)
-                file_size = logfile.tell()
-                logfile.seek(-(CHUNK_SIZE if file_size > CHUNK_SIZE else file_size), 2)
-                last_chunk = logfile.read()
-                print('\n'.join(last_chunk.decode('ascii').split('\n')[-CHUNK_LINES:]))
                 return 0
 
 def main():
