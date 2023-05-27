@@ -8,6 +8,8 @@
 #define Exhaustive 2
 #define RuntimeConfiguration DynBal
 
+#define DYNBAL_REPORT_PARAMETERS 0
+
 const uint32_t NVM_RELATIVE_WRITE_COST = 1; // the ratio of NVM write cost and NVM read cost
 
 class UsageSpan {

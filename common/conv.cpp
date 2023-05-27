@@ -74,6 +74,11 @@ typedef struct ConvTaskParams {
     int16_t *filter_buffer_addr;
     int16_t cached_filter_idx;
     uint16_t cached_input_tile_c_offset;
+
+#if DYNBAL_REPORT_PARAMETERS
+    uint32_t first_unfinished_job_idx;
+    uint8_t reported;
+#endif
 } ConvTaskParams;
 
 static ConvTaskParams conv_params_obj;
@@ -545,6 +550,12 @@ static uint16_t handle_conv_inner_loop(Model *model, const ConvLayerDimensions* 
     // 1 additional filters for values before transpose
     uint16_t inputs_buffer_end = LEA_BUFFER_SIZE - OUTPUT_LEN - conv_params->pState_len - (max_n_filters + 1) * conv_params->filter_offset;
     uint16_t tile_h = MIN_VAL(inputs_buffer_end / (conv_params->group * conv_params->dest_offset) - 2 * field_size, layer_dims->H);
+#if DYNBAL_REPORT_PARAMETERS
+    if (conv_params->first_unfinished_job_idx == 0 && !conv_params->reported) {
+        my_printf("%d" NEWLINE, tile_h);
+        conv_params->reported = 1;
+    }
+#endif
     uint16_t inputs_len = (tile_h + 2 * field_size) * (conv_params->group * conv_params->dest_offset);
     MY_ASSERT(inputs_len < LEA_BUFFER_SIZE - OUTPUT_LEN - conv_params->pState_len); // make sure no overflow occurs in the previous line
 
@@ -734,6 +745,10 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     start_cpu_counter(offsetof(Counters, progress_seeking));
     uint32_t first_unfinished_job_idx = run_recovery(model, output);
     uint32_t first_unfinished_value_offset = batch_start(job_index_to_offset(output, first_unfinished_job_idx));
+#if DYNBAL_REPORT_PARAMETERS
+    conv_params->first_unfinished_job_idx = first_unfinished_job_idx;
+    conv_params->reported = 0;
+#endif
 
     fix_first_unfinished_value_offset(model, &first_unfinished_value_offset);
 
@@ -791,6 +806,14 @@ void handle_conv(Model *model, const ParameterInfo *input[], ParameterInfo *outp
 
 #if INTERMITTENT && (RuntimeConfiguration == DynBal || ENABLE_DEMO_COUNTERS)
     update_progress_indicator_conv(node, conv_params->flags, conv_params->orig_flags, conv_params->layer_dims, first_unfinished_job_idx);
+
+#if DYNBAL_REPORT_PARAMETERS
+    if (first_unfinished_job_idx == 0) {
+        uint16_t node_idx = conv_params->output->parameter_info_idx - N_INPUT;
+        my_printf("%d,%d,%d,", node_idx, conv_params->flags->conv.input_tile_c, conv_params->flags->conv.output_tile_c);
+    }
+#endif
+
 #endif
     conv_params->n_tiles_c = upper_gauss(CHANNEL, conv_params->flags->conv.input_tile_c);
     output->params_len = conv_params->n_tiles_c * layer_dims->OUTPUT_H * layer_dims->OUTPUT_W * layer_dims->OUTPUT_CHANNEL * sizeof(int16_t);
