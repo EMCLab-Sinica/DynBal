@@ -2,6 +2,7 @@
 #include <cstdint>
 
 #include "cnn_common.h"
+#include "counters.h"
 #include "data.h"
 #include "data_structures.h"
 #include "dynbal-fc.h"
@@ -89,6 +90,12 @@ static void adapt_fc_dynbal(const Node* node, NodeFlags* node_flags, const NodeF
         { tile_width_lower, tile_width_upper },
     };
     for (uint8_t dim_idx : node->parameters_by_importance) {
+#if ENABLE_DEMO_COUNTERS
+        if (dim_idx == UsageSpanFc::ParameterDimension::TileChannel) {
+            // progress updates for demo relies on a fixed number of jobs, which may not be the case with dynamic tile_channel
+            continue;
+        }
+#endif
         uint16_t new_dim_value = convex_search(usage_span, dim_idx, value_ranges);
         if (!read_gpio_flag(GPIOFlag::DisableDynBalReconfiguration)) {
             if (dim_idx == UsageSpanFc::ParameterDimension::TileChannel) {
