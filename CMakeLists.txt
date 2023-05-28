@@ -9,7 +9,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 # Too many parameters are unused if some features are not enabled
-set(COMMON_FLAGS "-Wall -Wextra -Wshadow -Wundef -Wno-unused-parameter -pedantic")
+set(COMMON_FLAGS "-Wall -Wextra -Wshadow -Wundef -Wno-unused-parameter -Werror=undef -pedantic")
 if (${MY_DEBUG} GREATER 1)
     set(COMMON_FLAGS "${COMMON_FLAGS} -g3 -O0")
 else ()

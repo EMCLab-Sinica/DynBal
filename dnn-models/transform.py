@@ -92,6 +92,12 @@ class Constants:
     METHOD = "Baseline"
     FIRST_SAMPLE_OUTPUTS = []
     USE_STATES_ARRAY = 0
+    ENABLE_PER_LAYER_COUNTERS = 0
+    ENABLE_DEMO_COUNTERS = 0
+    COUNTERS_LEN = 0
+
+# Some demo codes assume counters are accumulated across layers
+assert not Constants.ENABLE_PER_LAYER_COUNTERS or not Constants.ENABLE_DEMO_COUNTERS, 'ENABLE_PER_LAYER_COUNTERS and ENABLE_DEMO_COUNTERS are mutually exclusive'
 
 other_flags = [
     # parameter flags
@@ -130,6 +136,10 @@ def init_cffi():
             if line.startswith(('#include', 'static_assert')):
                 continue
             c_sources += line
+    if Constants.ENABLE_DEMO_COUNTERS:
+        c_sources = c_sources.replace("#if !ENABLE_DEMO_COUNTERS", "/*").replace("#endif", "*/")
+    else:
+        c_sources = c_sources.replace("#if !ENABLE_DEMO_COUNTERS", "").replace("#endif", "")
     ffi.cdef(c_sources)
     return ffi
 
@@ -370,6 +380,7 @@ outputs = {
     'intermediate_parameters_info': io.BytesIO(),
     'labels': io.BytesIO(),
     'exhaustive_lookup_table': io.BytesIO(),
+    'counters': io.BytesIO(),
 }
 
 Constants.MODEL_NODES_LEN = len(nodes)
@@ -550,9 +561,15 @@ if args.write_images:
     with open('images/ans.txt', 'w') as f:
         f.write(' '.join(map(str, labels)))
 
+if Constants.ENABLE_PER_LAYER_COUNTERS:
+    Constants.COUNTERS_LEN = Constants.MODEL_NODES_LEN + 1
+else:
+    Constants.COUNTERS_LEN = 1
+outputs['counters'].write(b'\0' * ffi.sizeof('struct Counters') * Constants.COUNTERS_LEN)
+
 def nvm_layout():
     # See common/platform.h; some items are duplicated for double buffering
-    nvm_data_names = ['inference_stats', 'model', 'model', 'intermediate_parameters_info', 'node_flags', 'nodes', 'footprints', 'parameters']
+    nvm_data_names = ['inference_stats', 'model', 'model', 'intermediate_parameters_info', 'node_flags', 'nodes', 'footprints', 'counters', 'parameters']
     remaining_size = Constants.ORIG_NVM_SIZE - 256
     for data_name in nvm_data_names:
         if isinstance(outputs[data_name], io.BytesIO):

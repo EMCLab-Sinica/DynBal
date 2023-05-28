@@ -1,8 +1,10 @@
 #include <cinttypes>
 #include <cstdint>
 #include <cstring>
+#include "data.h"
 #include "cnn_common.h"
 #include "counters.h"
+#include "data_structures.h"
 #include "platform.h"
 
 uint8_t counters_enabled = 1;
@@ -11,11 +13,21 @@ uint8_t counters_enabled = 1;
 uint8_t current_counter = INVALID_POINTER;
 uint8_t prev_counter = INVALID_POINTER;
 
+Counters counters_data_vm[COUNTERS_LEN];
+
 Counters *counters() {
 #if ENABLE_PER_LAYER_COUNTERS
-    return counters_data[counters_cur_copy_id] + model_vm.layer_idx;
+    return counters_data_vm + model_vm.layer_idx;
 #else
-    return counters_data[counters_cur_copy_id];
+    return counters_data_vm;
+#endif
+}
+
+static uint32_t counter_offset(uint8_t counter) {
+#if ENABLE_PER_LAYER_COUNTERS
+    return COUNTERS_OFFSET + model_vm.layer_idx * sizeof(Counters) + counter;
+#else
+    return COUNTERS_OFFSET + counter;
 #endif
 }
 
@@ -23,9 +35,9 @@ template<uint32_t Counters::* MemPtr>
 static uint32_t print_counters() {
     uint32_t total = 0;
     for (uint16_t i = 0; i < MODEL_NODES_LEN; i++) {
-        total += counters_data[counters_cur_copy_id][i].*MemPtr;
+        total += counters_data_vm[i].*MemPtr;
 #if ENABLE_PER_LAYER_COUNTERS
-        my_printf("%12" PRIu32, counters_data[counters_cur_copy_id][i].*MemPtr);
+        my_printf("%12" PRIu32, counters_data_vm[i].*MemPtr);
 #else
         break;
 #endif
@@ -46,6 +58,7 @@ void print_all_counters() {
     }
 #endif
     uint32_t total_dma_bytes = 0, total_macs = 0, total_overhead = 0;
+#if !ENABLE_DEMO_COUNTERS
     my_printf(NEWLINE "Power counters:          "); print_counters<&Counters::power_counters>();
     my_printf(NEWLINE "MACs:                    "); total_macs = print_counters<&Counters::macs>();
     // state-embedding overheads
@@ -74,11 +87,13 @@ void print_all_counters() {
     my_printf(NEWLINE "NVM read (parameters):   "); print_counters<&Counters::nvm_read_parameters>();
     my_printf(NEWLINE "NVM read (shadow data):  "); print_counters<&Counters::nvm_read_shadow_data>();
     my_printf(NEWLINE "NVM read (model data):   "); print_counters<&Counters::nvm_read_model>();
+    my_printf(NEWLINE "NVM write (shadow data): "); print_counters<&Counters::nvm_write_shadow_data>();
+    my_printf(NEWLINE "NVM write (model data):  "); print_counters<&Counters::nvm_write_model>();
+#endif
+
     my_printf(NEWLINE "NVM write (L jobs):      "); total_overhead += print_counters<&Counters::nvm_write_linear_jobs>();
     my_printf(NEWLINE "NVM write (NL jobs):     "); total_overhead += print_counters<&Counters::nvm_write_non_linear_jobs>();
     my_printf(NEWLINE "NVM write (footprints):  "); total_overhead += print_counters<&Counters::nvm_write_footprints>();
-    my_printf(NEWLINE "NVM write (shadow data): "); print_counters<&Counters::nvm_write_shadow_data>();
-    my_printf(NEWLINE "NVM write (model data):  "); print_counters<&Counters::nvm_write_model>();
 
     my_printf(NEWLINE "Total DMA bytes: %d", total_dma_bytes);
     my_printf(NEWLINE "Total MACs: %d", total_macs);
@@ -91,8 +106,19 @@ static uint32_t* get_counter_ptr(uint8_t counter) {
     return reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(counters()) + counter);
 }
 
+void load_counters(void) {
+    // Temporarily disable counters as NVM access may also update counters, resulting in infinite recursion
+    counters_enabled = 0;
+    read_from_nvm_segmented(reinterpret_cast<uint8_t*>(counters_data_vm), COUNTERS_OFFSET, sizeof(Counters) * COUNTERS_LEN, sizeof(Counters));
+    counters_enabled = 1;
+}
+
 void add_counter(uint8_t counter, uint32_t value) {
+    // Disable counters for a similar reason
+    counters_enabled = 0;
     *get_counter_ptr(counter) += value;
+    write_to_nvm(get_counter_ptr(counter), counter_offset(counter), sizeof(uint32_t), 0);
+    counters_enabled = 1;
 }
 
 uint32_t get_counter(uint8_t counter) {
@@ -101,8 +127,12 @@ uint32_t get_counter(uint8_t counter) {
 
 void reset_counters() {
 #if ENABLE_COUNTERS
-    memset(counters_data[counters_cur_copy_id ^ 1], 0, sizeof(Counters) * COUNTERS_LEN);
-    counters_cur_copy_id ^= 1;
+    // Disable counters for a similar reason
+    counters_enabled = 0;
+    uint32_t reset_size = sizeof(Counters) * COUNTERS_LEN - sizeof(uint32_t) * N_PERSISTENT_COUNTERS;
+    memset(counters_data_vm, 0, reset_size);
+    write_to_nvm_segmented(reinterpret_cast<uint8_t*>(counters_data_vm), COUNTERS_OFFSET, reset_size, sizeof(Counters));
+    counters_enabled = 1;
 #endif
 }
 
@@ -110,11 +140,8 @@ bool counters_cleared() {
     return (current_counter == INVALID_POINTER) && (prev_counter == INVALID_POINTER);
 }
 
+#if !ENABLE_DEMO_COUNTERS
 void start_cpu_counter(uint8_t mem_ptr) {
-#if ENABLE_DEMO_COUNTERS
-    return;
-#endif
-
     MY_ASSERT(prev_counter == INVALID_POINTER, "There is already two counters - prev_counter=%d, current_counter=%d", prev_counter, current_counter);
 
     if (current_counter != INVALID_POINTER) {
@@ -128,10 +155,6 @@ void start_cpu_counter(uint8_t mem_ptr) {
 }
 
 void stop_cpu_counter(void) {
-#if ENABLE_DEMO_COUNTERS
-    return;
-#endif
-
     MY_ASSERT(current_counter != INVALID_POINTER);
 
     my_printf_debug("Stop inner CPU counter %d" NEWLINE, current_counter);
@@ -145,11 +168,13 @@ void stop_cpu_counter(void) {
         current_counter = INVALID_POINTER;
     }
 }
+#endif
 
 void report_progress() {
 #if ENABLE_DEMO_COUNTERS
     static uint8_t last_progress = 0;
 
+    uint32_t total_jobs = get_counter(offsetof(Counters, total_jobs));
     if (!total_jobs) {
         return;
     }

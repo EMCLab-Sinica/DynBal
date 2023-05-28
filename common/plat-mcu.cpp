@@ -24,13 +24,6 @@
 #define DATA_SECTION_NVM
 #endif
 
-#if ENABLE_COUNTERS
-DATA_SECTION_NVM Counters _counters_data[2][COUNTERS_LEN];
-Counters (*counters_data)[COUNTERS_LEN] = _counters_data;
-DATA_SECTION_NVM uint8_t counters_cur_copy_id = 0;
-DATA_SECTION_NVM uint32_t total_jobs = 0;
-#endif
-
 #ifdef __MSP432__
 uint32_t last_cyccnt = 0;
 #endif
@@ -84,7 +77,7 @@ void my_memcpy(void* dest, const void* src, size_t n) {
 
 void my_memcpy_from_parameters(void *dest, const ParameterInfo *param, uint32_t offset_in_bytes, size_t n) {
     MY_ASSERT(offset_in_bytes + n <= PARAMETERS_DATA_LEN);
-#if ENABLE_COUNTERS
+#if ENABLE_COUNTERS && !ENABLE_DEMO_COUNTERS
     if (counters_enabled) {
         add_counter(offsetof(Counters, nvm_read_parameters), n);
         my_printf_debug("Recorded %lu bytes fetched from parameters, accumulated=%" PRIu32 NEWLINE, n, get_counter(offsetof(Counters, nvm_read_parameters)));
@@ -197,6 +190,11 @@ void IntermittentCNNTest() {
     }
 
     load_model_from_nvm();
+
+#if ENABLE_COUNTERS
+    load_counters();
+#endif
+
     if (!GPIO_getInputPinValue(GPIO_RESET_PORT, GPIO_RESET_PIN)) {
         uartinit();
 

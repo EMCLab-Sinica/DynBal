@@ -70,3 +70,44 @@ struct InferenceStats {
     uint8_t dummy[3];
     uint8_t version;
 };
+
+#define N_PERSISTENT_COUNTERS 1
+struct Counters {
+#if !ENABLE_DEMO_COUNTERS
+    uint32_t power_counters;
+    uint32_t macs;
+
+    uint32_t embedding;
+    uint32_t stripping;
+    uint32_t overflow_handling;
+
+    uint32_t state_query;
+    uint32_t table_updates;
+    uint32_t table_preservation;
+    uint32_t table_loading;
+
+    uint32_t progress_seeking;
+
+    uint32_t memory_layout;
+
+    uint32_t data_loading;
+
+    uint32_t embedded_values;
+
+    uint32_t dma_invocations;
+    uint32_t dma_bytes;
+    uint32_t dma_vm_to_vm;
+    uint32_t nvm_read_job_outputs;
+    uint32_t nvm_read_parameters;
+    uint32_t nvm_read_shadow_data;
+    uint32_t nvm_read_model;
+    uint32_t nvm_write_shadow_data;
+    uint32_t nvm_write_model;
+#endif
+    uint32_t nvm_write_linear_jobs;
+    uint32_t nvm_write_non_linear_jobs;
+    uint32_t nvm_write_footprints;
+
+    // persistent counters
+    uint32_t total_jobs;
+};

@@ -18,7 +18,7 @@ const char* datatype_name(void);
 template<typename T>
 static uint8_t get_newer_copy_id(uint16_t data_idx) {
     uint8_t version1, version2;
-#if ENABLE_COUNTERS
+#if ENABLE_COUNTERS && !ENABLE_DEMO_COUNTERS
     add_counter(offsetof(Counters, nvm_read_shadow_data), 2);
 #endif
     read_from_nvm(&version1, nvm_addr<T>(0, data_idx) + offsetof(T, version), sizeof(uint8_t));
@@ -55,7 +55,7 @@ T* get_versioned_data(uint16_t data_idx) {
     T *dst = vm_addr<T>(data_idx);
 
     uint8_t newer_copy_id = get_newer_copy_id<T>(data_idx);
-#if ENABLE_COUNTERS
+#if ENABLE_COUNTERS && !ENABLE_DEMO_COUNTERS
     add_counter(offsetof(Counters, nvm_read_shadow_data), sizeof(T));
     my_printf_debug("Recorded %lu bytes of shadow data read from NVM" NEWLINE, sizeof(T));
 #endif
@@ -72,7 +72,7 @@ void commit_versioned_data(uint16_t data_idx) {
     T* vm_ptr = vm_addr<T>(data_idx);
     bump_version<T>(vm_ptr);
 
-#if ENABLE_COUNTERS
+#if ENABLE_COUNTERS && !ENABLE_DEMO_COUNTERS
     add_counter(offsetof(Counters, nvm_write_shadow_data), sizeof(T));
     my_printf_debug("Recorded %lu bytes of shadow data written to NVM" NEWLINE, sizeof(T));
 #endif

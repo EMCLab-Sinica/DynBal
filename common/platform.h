@@ -25,6 +25,7 @@
 #define NODE_FLAGS_OFFSET (INTERMEDIATE_PARAMETERS_INFO_OFFSET - NODE_FLAGS_DATA_LEN)
 #define NODES_OFFSET (NODE_FLAGS_OFFSET - NODES_DATA_LEN)
 #define FOOTPRINTS_OFFSET (NODES_OFFSET - FOOTPRINTS_DATA_LEN)
+#define COUNTERS_OFFSET (FOOTPRINTS_OFFSET - COUNTERS_DATA_LEN)
 
 #define DISABLE_FEATURE_MAP_NVM_ACCESS 0
 
@@ -38,6 +39,7 @@ extern Model model_vm;
 void read_from_nvm(void* vm_buffer, uint32_t nvm_offset, size_t n);
 void write_to_nvm(const void* vm_buffer, uint32_t nvm_offset, size_t n, uint16_t timer_delay = 0);
 // DMA controller on MSP432 can handle at most 1024 words at a time
+void read_from_nvm_segmented(uint8_t* vm_buffer, uint32_t nvm_offset, uint32_t total_len, uint16_t segment_size);
 void write_to_nvm_segmented(const uint8_t* vm_buffer, uint32_t nvm_offset, uint32_t total_len, uint16_t segment_size = 1024);
 void my_erase(void);
 void copy_data_to_nvm(void);

@@ -202,7 +202,7 @@ void my_matrix_mpy_q15(uint16_t A_rows, uint16_t A_cols, uint16_t B_rows, uint16
 #endif
     (void)status; // Suppress -Wunused-variable when MY_DEBUG == MY_DEBUG_NO_ASSERT
 #endif
-#if ENABLE_COUNTERS
+#if ENABLE_COUNTERS && !ENABLE_DEMO_COUNTERS
     add_counter(offsetof(Counters, macs), A_rows * B_cols * A_cols);
 #endif
 }

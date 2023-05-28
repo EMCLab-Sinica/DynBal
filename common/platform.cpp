@@ -12,7 +12,7 @@
 #include "double_buffering.h"
 
 // put offset checks here as extra headers are used
-static_assert(FOOTPRINTS_OFFSET >= PARAMETERS_OFFSET + PARAMETERS_DATA_LEN, "Incorrect NVM layout");
+static_assert(COUNTERS_OFFSET >= PARAMETERS_OFFSET + PARAMETERS_DATA_LEN, "Incorrect NVM layout");
 
 Model model_vm;
 
@@ -81,7 +81,7 @@ void my_memcpy_to_param(ParameterInfo *param, uint16_t offset_in_word, const voi
 }
 
 void my_memcpy_from_intermediate_values(void *dest, const ParameterInfo *param, uint16_t offset_in_word, size_t n) {
-#if ENABLE_COUNTERS
+#if ENABLE_COUNTERS && !ENABLE_DEMO_COUNTERS
     if (counters_enabled) {
         add_counter(offsetof(Counters, nvm_read_job_outputs), n);
         my_printf_debug("Recorded %lu bytes of job outputs fetched from NVM, accumulated=%" PRIu32 NEWLINE, n, get_counter(offsetof(Counters, nvm_read_job_outputs)));
@@ -94,7 +94,7 @@ void my_memcpy_from_intermediate_values(void *dest, const ParameterInfo *param, 
 }
 
 void read_from_samples(void *dest, uint16_t offset_in_word, size_t n) {
-#if ENABLE_COUNTERS
+#if ENABLE_COUNTERS && !ENABLE_DEMO_COUNTERS
     if (counters_enabled) {
         add_counter(offsetof(Counters, nvm_read_job_outputs), n);
         my_printf_debug("Recorded %lu bytes of samples fetched from NVM, accumulated=%" PRIu32 NEWLINE, n, get_counter(offsetof(Counters, nvm_read_job_outputs)));
@@ -107,7 +107,7 @@ void read_from_samples(void *dest, uint16_t offset_in_word, size_t n) {
 }
 
 ParameterInfo* get_intermediate_parameter_info(uint16_t i) {
-#if ENABLE_COUNTERS
+#if ENABLE_COUNTERS && !ENABLE_DEMO_COUNTERS
     if (counters_enabled) {
         add_counter(offsetof(Counters, nvm_read_model), sizeof(ParameterInfo));
         my_printf_debug("Recorded %lu bytes of ParameterInfo fetched from NVM" NEWLINE, sizeof(ParameterInfo));
@@ -122,7 +122,7 @@ ParameterInfo* get_intermediate_parameter_info(uint16_t i) {
 }
 
 void commit_intermediate_parameter_info(uint16_t i) {
-#if ENABLE_COUNTERS
+#if ENABLE_COUNTERS && !ENABLE_DEMO_COUNTERS
     if (counters_enabled) {
         add_counter(offsetof(Counters, nvm_write_model), sizeof(ParameterInfo));
         my_printf_debug("Recorded %lu bytes of ParameterInfo written NVM" NEWLINE, sizeof(ParameterInfo));
@@ -154,7 +154,7 @@ void commit_model(void) {
     start_cpu_counter(offsetof(Counters, table_preservation));
     commit_versioned_data<Model>(0);
     // send finish signals only after the whole network has really finished
-#if ENABLE_COUNTERS
+#if ENABLE_COUNTERS && !ENABLE_DEMO_COUNTERS
     add_counter(offsetof(Counters, power_counters), 1);
 #endif
     if (!model_vm.running) {
@@ -182,6 +182,12 @@ void first_run(void) {
     enable_counters();
 }
 
+void read_from_nvm_segmented(uint8_t* vm_buffer, uint32_t nvm_offset, uint32_t total_len, uint16_t segment_size) {
+    for (uint32_t idx = 0; idx < total_len; idx += segment_size) {
+        read_from_nvm(vm_buffer + idx, nvm_offset + idx, MIN_VAL(total_len - idx, segment_size));
+    }
+}
+
 void write_to_nvm_segmented(const uint8_t* vm_buffer, uint32_t nvm_offset, uint32_t total_len, uint16_t segment_size) {
     for (uint32_t idx = 0; idx < total_len; idx += segment_size) {
         write_to_nvm(vm_buffer + idx, nvm_offset + idx, MIN_VAL(total_len - idx, segment_size));
@@ -189,7 +195,7 @@ void write_to_nvm_segmented(const uint8_t* vm_buffer, uint32_t nvm_offset, uint3
 }
 
 void record_overflow_handling_overhead(uint32_t cycles) {
-#if ENABLE_COUNTERS
+#if ENABLE_COUNTERS && !ENABLE_DEMO_COUNTERS
     add_counter(offsetof(Counters, overflow_handling), cycles);
 #endif
 }

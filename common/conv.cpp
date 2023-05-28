@@ -95,7 +95,7 @@ static void flip_filter_state_bits(ConvTaskParams *conv_params, uint16_t n_filte
     } else {
         to_flip_state_bits = biases;
     }
-#if ENABLE_COUNTERS
+#if ENABLE_COUNTERS && !ENABLE_DEMO_COUNTERS
     add_counter(offsetof(Counters, embedded_values), n_filters);
 #endif
     // need negating filter value here as it will be multiplied with _Q15(-1.0), or -32768
@@ -214,7 +214,7 @@ static void convTask(int16_t cur_input_h, const ConvLayerDimensions* layer_dims,
             if (has_state) {
                 my_printf_debug("Adding state bit for newly loaded filter idx=%d" NEWLINE, idx);
                 last_elem = state_offsets[idx];
-#if ENABLE_COUNTERS
+#if ENABLE_COUNTERS && !ENABLE_DEMO_COUNTERS
                 add_counter(offsetof(Counters, embedded_values), 1);
 #endif
             }

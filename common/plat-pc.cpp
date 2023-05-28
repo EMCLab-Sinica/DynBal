@@ -32,12 +32,6 @@ uint8_t *nvm;
 static uint32_t shutdown_counter = UINT32_MAX;
 static std::ofstream out_file;
 
-#if ENABLE_COUNTERS
-Counters (*counters_data)[COUNTERS_LEN];
-uint8_t counters_cur_copy_id = 0;
-uint32_t total_jobs = 0;
-#endif
-
 #ifdef USE_PROTOBUF
 static void save_model_output_data() {
     model_output_data->SerializeToOstream(&out_file);
@@ -100,9 +94,6 @@ int main(int argc, char* argv[]) {
     }
 
     nvm = reinterpret_cast<uint8_t*>(map_file("nvm.bin", NVM_SIZE, read_only));
-#if ENABLE_COUNTERS
-    counters_data = reinterpret_cast<Counters(*)[COUNTERS_LEN]>(map_file("counters.bin", 2*COUNTERS_LEN*sizeof(Counters), read_only));
-#endif
 
 #else
     (void)read_only; // no simulated NVM other than Linux - silent a compiler warning
@@ -127,6 +118,10 @@ int main(int argc, char* argv[]) {
         // the first time
         first_run();
     }
+
+#if ENABLE_COUNTERS
+    load_counters();
+#endif
 
     ret = run_cnn_tests(n_samples);
 
@@ -158,7 +153,7 @@ int main(int argc, char* argv[]) {
 }
 
 void my_memcpy_ex(void* dest, const void* src, size_t n, uint8_t write_to_nvm) {
-#if ENABLE_COUNTERS
+#if ENABLE_COUNTERS && !ENABLE_DEMO_COUNTERS
     if (counters_enabled) {
         add_counter(offsetof(Counters, dma_invocations), 1);
         add_counter(offsetof(Counters, dma_bytes), n);
@@ -181,7 +176,7 @@ void my_memcpy_ex(void* dest, const void* src, size_t n, uint8_t write_to_nvm) {
 }
 
 void my_memcpy(void* dest, const void* src, size_t n) {
-#if ENABLE_COUNTERS
+#if ENABLE_COUNTERS && !ENABLE_DEMO_COUNTERS
     if (counters_enabled) {
         add_counter(offsetof(Counters, dma_vm_to_vm), n);
         my_printf_debug("Recorded %lu bytes copied from VM to VM" NEWLINE, n);
@@ -192,7 +187,7 @@ void my_memcpy(void* dest, const void* src, size_t n) {
 
 void my_memcpy_from_parameters(void *dest, const ParameterInfo *param, uint32_t offset_in_bytes, size_t n) {
     MY_ASSERT(offset_in_bytes + n <= PARAMETERS_DATA_LEN);
-#if ENABLE_COUNTERS
+#if ENABLE_COUNTERS && !ENABLE_DEMO_COUNTERS
     if (counters_enabled) {
         add_counter(offsetof(Counters, nvm_read_parameters), n);
         my_printf_debug("Recorded %lu bytes fetched from parameters, accumulated=%" PRIu32 NEWLINE, n, get_counter(offsetof(Counters, nvm_read_parameters)));
