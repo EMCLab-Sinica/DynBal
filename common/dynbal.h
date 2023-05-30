@@ -18,6 +18,7 @@ public:
     virtual uint32_t data_reuse_cost(uint8_t dim_idx, uint16_t dim_value) const = 0;
     virtual uint32_t data_refetch_cost(uint8_t dim_idx, uint16_t dim_value) const = 0;
     virtual uint16_t nearest_value(uint8_t dim_idx, uint16_t dim_value, bool not_larger_than) const = 0;
+    virtual ~UsageSpan() = default;
 };
 
 uint16_t convex_search(const UsageSpan* usage_span, uint8_t dim_idx, const uint16_t value_ranges[][2]);
@@ -30,12 +31,6 @@ enum class InferenceStatsOpType {
 };
 void commit_inference_stats(InferenceStatsOpType op_type);
 InferenceStats* load_inference_stats_from_nvm(InferenceStatsOpType op_type);
-
-enum class GPIOFlag {
-    DisableDynBalReconfiguration,
-    DisableDynBalSearch,
-    DisableDynBalTracking,
-};
 
 #if RuntimeConfiguration == Exhaustive
 struct ExhaustiveLookupTable {

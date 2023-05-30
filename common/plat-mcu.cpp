@@ -113,7 +113,10 @@ static GPIOPin indicators[] = {
 
 static GPIOPin gpio_flags[] = {
 #ifdef __MSP430__
-#error "TODO"
+    // TODO: check if these work on MSP430
+    { GPIO_PORT_P3, GPIO_PIN7 },
+    { GPIO_PORT_P3, GPIO_PIN6 },
+    { GPIO_PORT_P3, GPIO_PIN5 },
 #else
     { GPIO_PORT_P2, GPIO_PIN7 },
     { GPIO_PORT_P2, GPIO_PIN6 },

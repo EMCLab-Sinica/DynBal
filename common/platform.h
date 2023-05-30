@@ -35,6 +35,13 @@ struct Counters;
 enum class GPIOFlag;
 extern Model model_vm;
 
+// put GPIOFlag here to make MSP-CGT LTO happy
+enum class GPIOFlag {
+    DisableDynBalReconfiguration,
+    DisableDynBalSearch,
+    DisableDynBalTracking,
+};
+
 [[ noreturn ]] void ERROR_OCCURRED(void);
 void read_from_nvm(void* vm_buffer, uint32_t nvm_offset, size_t n);
 void write_to_nvm(const void* vm_buffer, uint32_t nvm_offset, size_t n, uint16_t timer_delay = 0);
