@@ -17,9 +17,9 @@ DynBal contains two key design components which interacts with the inference eng
 
 <!-- For more technical details, please refer to our paper **TODO**. -->
 
-Demo video: https://www.youtube.com/watch?v=ylga-CFQ0No
+Demo video: https://www.youtube.com/watch?v=fNOJZqhlVBk
 
-Experimental data: [link](https://docs.google.com/spreadsheets/d/1DgIscGiCIisK8RUS3iKOw_dN55UL0F0h/edit?usp=share_link&ouid=118305948703170588577&rtpof=true&sd=true)
+Experimental data (including parameter selections): [link](https://docs.google.com/spreadsheets/d/1DgIscGiCIisK8RUS3iKOw_dN55UL0F0h/edit?usp=share_link&ouid=118305948703170588577&rtpof=true&sd=true)
 
 <!-- TABLE OF CONTENTS -->
 ## Table of Contents
