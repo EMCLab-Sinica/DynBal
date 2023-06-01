@@ -5,3 +5,4 @@ pillow==9.4.0
 pyqt5==5.15.9
 scipy==1.10.1
 tf2onnx==1.13.0
+xlsxwriter==3.1.2
