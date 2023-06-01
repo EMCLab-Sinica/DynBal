@@ -99,14 +99,13 @@ void handle_gemm(Model *model, const ParameterInfo *input[], ParameterInfo *outp
     layer_dims.A_cols = A->dims[1];
     layer_dims.B_cols = B->dims[1];
     update_progress_indicator_fc(node, node_flags, orig_node_flags, layer_dims, first_unfinished_value_offset);
+#endif
 
 #if DYNBAL_REPORT_PARAMETERS
     if (first_unfinished_value_offset == 0) {
         uint16_t node_idx = output->parameter_info_idx - N_INPUT;
         my_printf("%d,%d,%d" NEWLINE, node_idx, node_flags->gemm.tile_channel, node_flags->gemm.tile_width);
     }
-#endif
-
 #endif
 
     my_printf_debug("tile_channel=%d, tile_width=%d" NEWLINE, node_flags->gemm.tile_channel, node_flags->gemm.tile_width);
