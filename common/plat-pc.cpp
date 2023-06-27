@@ -38,6 +38,7 @@ static void save_model_output_data() {
 }
 #endif
 
+#ifdef __linux__
 static void* map_file(const char* path, size_t len, bool read_only) {
     int fd = -1;
     struct stat stat_buf;
@@ -58,6 +59,7 @@ static void* map_file(const char* path, size_t len, bool read_only) {
     }
     return ptr;
 }
+#endif
 
 int main(int argc, char* argv[]) {
     int ret = 0, opt_ch, read_only = 0, n_samples = 0;
