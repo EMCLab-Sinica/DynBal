@@ -33,7 +33,7 @@ def run_one_inference(program, interval, logfile, shutdown_after_writes, power_c
                 proc.send_signal(signal.SIGINT)
             proc.wait()
             first_run = False
-            if proc.returncode == 2:
+            if proc.returncode in (2, -signal.SIGINT):
                 # simulated power failure
                 continue
 
